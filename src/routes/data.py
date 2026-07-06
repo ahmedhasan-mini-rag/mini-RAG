@@ -4,8 +4,9 @@ import aiofiles
 import logging
 
 from helpers.config import get_settings, Settings
-from controllers import DataController
+from controllers import DataController, ProcessController
 from models import ResponseSignal
+from schemes import ProcessRequest
 
 data_router = APIRouter(
     prefix='/api/v1/data',
@@ -24,10 +25,13 @@ async def upload_file(project_id: str, file: UploadFile,
                     if not is_valid:
                         return JSONResponse(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            content=response_message
+                            content={
+                                'response' : response_message
+                            }
                         )
 
-                    file_path, file_name = data_controller.generate_unique_filepath(
+                    # file_id is the file's name(e.g, "file.txt")
+                    file_path, file_id = data_controller.generate_unique_filepath(
                         original_name=file.filename,
                         project_id=project_id
                     )
@@ -42,12 +46,45 @@ async def upload_file(project_id: str, file: UploadFile,
 
                         return JSONResponse(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            content=ResponseSignal.FILE_UPLOAD_FAIL.value
+                            content={
+                                'response' : ResponseSignal.FILE_UPLOAD_FAIL.value
+                            }
                         )
                         
                     return JSONResponse(
                         content={
                             'response' : ResponseSignal.FILE_UPLOAD_SUCCESS.value,
-                            'file_id' : file_name
+                            'file_id' : file_id
                         }
                     )
+
+@data_router.post('/process/{project_id}')
+async def process_file(project_id: str, process_request: ProcessRequest):
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+
+    if not process_request.check_file_exists(project_id=project_id):
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                'response' : ResponseSignal.FILE_NOT_FOUND.value
+            }
+        )
+
+    process_controller = ProcessController(project_id=project_id)
+    file_content = process_controller.get_file_content(file_id=file_id)
+
+    chunks = process_controller.process_file_content(
+        file_content=file_content,
+        chunk_size=chunk_size, 
+        overlap_size=overlap_size
+    )
+
+    if chunks is None or len(chunks) == 0 :
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=ResponseSignal.PROCESSING_FAIL.value
+        )
+    
+    return chunks

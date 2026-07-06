@@ -22,7 +22,9 @@ class DataController(BaseController):
     
     def generate_unique_filepath(self, original_name: str, project_id: str):
         random_string = self.generate_random_string()
-        project_path = ProjectController().get_project_path(project_id=project_id)
+        project_path = ProjectController().get_project_path(
+            project_id=project_id, create_if_missing=True
+            )
 
         cleaned_file_name = self.clean_file_name(original_name)
 

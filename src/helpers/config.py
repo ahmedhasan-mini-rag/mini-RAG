@@ -26,15 +26,13 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
         extra='ignore'
     )
+    APP_NAME: str 
+    APP_VERSION: str
 
-    OPENAI_API_KEY: str
     FILE_ALLOWED_TYPES: list
     FILE_MAX_SIZE: int
     FILE_CHUNK_SIZE: int
 
-    APP_NAME: str 
-    APP_VERSION: str
-    
 def get_settings():
     meta_data = _read_toml()
     settings = Settings( 
