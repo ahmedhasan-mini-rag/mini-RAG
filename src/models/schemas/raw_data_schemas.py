@@ -8,7 +8,10 @@ class ProcessRequest(BaseModel):
     do_reset: bool | None = False
 
     def check_file_exists(cls, project_id: str):
-        project_path = ProjectController().get_project_path(project_id=project_id)
+        project_path = ProjectController().get_project_path(
+            project_id=project_id,
+            create_if_missing=False
+        )
         
         file_path = project_path / cls.file_id
         return file_path.exists()

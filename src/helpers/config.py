@@ -4,7 +4,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-def _read_toml():
+def _read_toml() -> dict:
     toml_path = BASE_DIR / "pyproject.toml"
 
     try:
@@ -32,8 +32,11 @@ class Settings(BaseSettings):
     FILE_ALLOWED_TYPES: list
     FILE_MAX_SIZE: int
     FILE_CHUNK_SIZE: int
+    
+    MONGODB_URL: str
+    MONGODB_DATABASE: str
 
-def get_settings():
+def get_settings() -> Settings:
     meta_data = _read_toml()
     settings = Settings( 
         APP_NAME = meta_data.get('name', 'unknown'),

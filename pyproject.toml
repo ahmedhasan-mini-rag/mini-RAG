@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.138.1",
     "langchain-community>=0.4.2",
     "pydantic-settings>=2.14.2",
+    "pymongo>=4.17.0",
     "pymupdf>=1.28.0",
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.32",

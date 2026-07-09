@@ -5,7 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .BaseController import BaseController
 from .ProjectController import ProjectController
-from models import ProcessingEnums
+from models.enums import ProcessingEnums
 
 class ProcessController(BaseController):
     def __init__(self, project_id: str):
