@@ -6,13 +6,20 @@ services:
     restart: always
 
     ports:
-      - "9080:27017"
+      - "8090:27017"
 
     volumes:
-      - ./mongodb:/data/db
+      - mongodb_data:/data/db
     
     networks:
       - backend
+
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+
+volumes:
+  mongodb_data:
 
 networks:
   backend:

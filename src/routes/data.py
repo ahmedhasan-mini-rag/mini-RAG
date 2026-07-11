@@ -21,7 +21,9 @@ logger = logging.getLogger('uvicorn.error')
 async def upload_file(request: Request,project_id: str, file: UploadFile,
                     settings: Settings = Depends(get_settings)) -> JSONResponse:
 
-                    project_model = ProjectModel(db_client=request.app.state.db_client)
+                    project_model = await ProjectModel.create_instance(
+                        db_client=request.app.state.db_client
+                    )
 
                     project = await project_model.get_project(
                         project_id=project_id,
@@ -85,7 +87,9 @@ async def process_file(request: Request, project_id: str, process_request: Proce
             }
         )
 
-    project_model = ProjectModel(db_client=request.app.state.db_client)
+    project_model = await ProjectModel.create_instance(
+        db_client=request.app.state.db_client
+    )
 
     project = await project_model.get_project(
         project_id=project_id,
@@ -117,7 +121,9 @@ async def process_file(request: Request, project_id: str, process_request: Proce
         for i, chunk in enumerate(chunks, 1)
     ]
 
-    chunk_model = ChunkModel(db_client=request.app.state.db_client)
+    chunk_model = await ChunkModel.create_instance(
+        db_client=request.app.state.db_client
+    )
 
     if do_reset:
         _ = await chunk_model.delete_multiple_chunks(db_project_id=project.id)

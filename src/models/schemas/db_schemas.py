@@ -16,6 +16,16 @@ class Project(BaseModel):
             raise ValueError('<project_id> must be alphanumeric value.')
         return value
 
+    @staticmethod
+    def get_indexes():
+        return [
+            {
+                'keys' : [('project_id', 1)],
+                'name' : 'project_id_index',
+                'unique' : True
+            }
+        ]
+
 class DataChunk(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True
@@ -26,3 +36,13 @@ class DataChunk(BaseModel):
     chunk_metadata: dict
     chunk_order: int = Field(gt=0)
     chunk_project_id: ObjectId
+
+    @staticmethod
+    def get_indexes():
+        return [
+            {
+                'keys' : [('chunk_project_id', 1)],
+                'name' : 'chunk_project_id_index',
+                'unique' : False
+            }
+        ]

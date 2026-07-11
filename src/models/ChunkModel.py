@@ -1,4 +1,6 @@
 """Operations of the 'chunks' collection in the database."""
+
+from __future__ import annotations
 from bson import ObjectId
 
 from .CustomBaseModel import CustomBaseModel
@@ -7,11 +9,27 @@ from .schemas import DataChunk
 
 
 class ChunkModel(CustomBaseModel):
-    def __init__(self, db_client):
+    def __init__(self, db_client: object):
         super().__init__(db_client)
-
         self.collection = db_client[DataBaseEnums.COLLECTION_CHUNK_NAME.value]
     
+    @classmethod
+    async def create_instance(cls, db_client: object) -> ChunkModel:
+        obj = cls(db_client=db_client)
+        await obj.init_indexes()
+
+        return obj
+
+    async def init_indexes(self):
+        indexes = DataChunk.get_indexes()
+        
+        for index in indexes:
+            await self.collection.create_index(
+                keys = index['keys'],
+                name = index['name'],
+                unique = index['unique']
+            )
+
     async def insert_chunk(self, chunk: DataChunk) -> DataChunk:
         result = await self.collection.insert_one(
             chunk.model_dump(exclude_none=True)

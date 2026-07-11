@@ -1,16 +1,33 @@
 """Operations of the 'projects' collection in the database."""
 
+from __future__ import annotations
+
 from .CustomBaseModel import CustomBaseModel
 from .enums import DataBaseEnums
 from .schemas import Project
 
-
 class ProjectModel(CustomBaseModel):
-    def __init__(self, db_client):
+    def __init__(self, db_client: object):
         super().__init__(db_client)
-
         self.collection = db_client[DataBaseEnums.COLLECTION_PROJECT_NAME.value]
     
+    @classmethod
+    async def create_instance(cls ,db_client: object) -> ProjectModel:
+        obj = cls(db_client=db_client) 
+        await obj.init_indexes()
+
+        return obj
+
+    async def init_indexes(self):
+        indexes = Project.get_indexes()
+
+        for index in indexes:
+            await self.collection.create_index(
+                keys = index['keys'],
+                name = index['name'],
+                unique = index['unique']
+            )
+
     async def insert_project(self, project: Project) -> Project:
         result = await self.collection.insert_one(
             project.model_dump(exclude_none=True)
@@ -24,7 +41,7 @@ class ProjectModel(CustomBaseModel):
             'project_id' : project_id
         })
 
-        if doc is None and create_on_absence:
+        if doc is None and create_if_missing:
             project = Project(project_id=project_id)
             project = await self.insert_project(project=project)
 
