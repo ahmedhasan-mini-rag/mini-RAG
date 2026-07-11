@@ -18,7 +18,7 @@ class ProjectModel(CustomBaseModel):
 
         return obj
 
-    async def init_indexes(self):
+    async def init_indexes(self) -> None:
         indexes = Project.get_indexes()
 
         for index in indexes:

@@ -40,7 +40,7 @@ class ChunkModel(CustomBaseModel):
     
     async def get_chunk(self, chunk_id: str) -> DataChunk | None:
         doc = await self.collection.find_one({
-            '_id' : ObjectId(chunk_id)
+            '_id' :  ObjectId(chunk_id) if isinstance(chunk_id, str) else chunk_id
         })
 
         return None if doc is None else DataChunk(**doc)

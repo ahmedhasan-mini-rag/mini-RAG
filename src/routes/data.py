@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
 import aiofiles
 import logging
+import os
 
 from helpers.config import get_settings, Settings
 from controllers import DataController, ProcessController
-from models.enums import ResponseSignal
-from models.schemas import ProcessRequest, DataChunk
+from models.enums import ResponseSignal, AssetTypeEnums
+from models.schemas import ProcessRequest, DataChunk, Asset
 from models.ProjectModel import ProjectModel
 from models.ChunkModel import ChunkModel
+from models.AssetModel import AssetModel
 
 data_router = APIRouter(
     prefix='/api/v1/data',
@@ -20,7 +22,7 @@ logger = logging.getLogger('uvicorn.error')
 @data_router.post('/upload/{project_id}')
 async def upload_file(request: Request,project_id: str, file: UploadFile,
                     settings: Settings = Depends(get_settings)) -> JSONResponse:
-
+                    
                     project_model = await ProjectModel.create_instance(
                         db_client=request.app.state.db_client
                     )
@@ -62,11 +64,24 @@ async def upload_file(request: Request,project_id: str, file: UploadFile,
                                 'response' : ResponseSignal.FILE_UPLOAD_FAIL.value
                             }
                         )
-                        
+                    
+                    # create the file asset in the database
+                    asset_model = await AssetModel.create_instance(
+                        db_client=request.app.state.db_client
+                    )
+
+                    asset = Asset(
+                        asset_project_id=project.id,
+                        asset_type=AssetTypeEnums.FILE.value,
+                        asset_name=file_id,
+                        asset_size=os.path.getsize(file_path),
+                    )
+                    file_asset = await asset_model.insert_asset(asset=asset)
+
                     return JSONResponse(
                         content={
                             'response' : ResponseSignal.FILE_UPLOAD_SUCCESS.value,
-                            'file_id' : file_id,
+                            'file_id' : str(file_asset.id),
                             'project_id' : project_id
                         }
                     )
