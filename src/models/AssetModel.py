@@ -37,10 +37,36 @@ class AssetModel(CustomBaseModel):
 
         return asset
     
-    async def get_all_project_assets(self, asset_project_id: str) -> list:
-        docs = await self.collection.find({
-            "asset_project_id" : ObjectId(asset_project_id) if isinstance(asset_project_id, str) else asset_project_id
-        }).to_list(length=None)
+    async def get_asset(self, asset_project_id: str | ObjectId, asset_name: str) -> Asset:
+        query = {
+            "asset_project_id":(
+                ObjectId(asset_project_id)
+                if isinstance(asset_project_id, str)
+                else asset_project_id
+            ),
+            'asset_name' : asset_name
+        }
+        doc = await self.collection.find_one(query)
 
-        return docs
+        return Asset(**doc) if doc is not None else None
 
+    async def get_all_project_assets(
+        self, 
+        asset_project_id: str | ObjectId, 
+        asset_type: str | None = None
+    ) -> list[Asset]:
+    
+        query = {
+            "asset_project_id":(
+                ObjectId(asset_project_id)
+                if isinstance(asset_project_id, str)
+                else asset_project_id
+            )
+        }
+
+        if asset_type is not None:
+            query["asset_type"] = asset_type
+
+        docs = await self.collection.find(query).to_list(length=None)
+        
+        return [Asset(**doc) for doc in docs]

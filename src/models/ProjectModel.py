@@ -41,13 +41,16 @@ class ProjectModel(CustomBaseModel):
             'project_id' : project_id
         })
 
-        if doc is None and create_if_missing:
+        if doc is not None:
+            return Project(**doc)
+        
+        if create_if_missing:
             project = Project(project_id=project_id)
             project = await self.insert_project(project=project)
-
             return project
+        
+        return None
 
-        return Project(**doc)
 
     async def get_all_projects(self, page: int = 1, page_size: int = 12) -> tuple[list[Project], int]:
         total_docs = await self.collection.count_documents({})

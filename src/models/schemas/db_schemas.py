@@ -37,6 +37,7 @@ class DataChunk(BaseModel):
     chunk_metadata: dict
     chunk_order: int = Field(gt=0)
     chunk_project_id: ObjectId
+    chunk_asset_id: ObjectId
 
     @staticmethod
     def get_indexes():
@@ -71,5 +72,13 @@ class Asset(BaseModel):
                 ],
                 "name": "asset_project_id_name_index",
                 "unique": True
+            },
+            {
+                "keys": [
+                    ("asset_project_id", 1),
+                    ("asset_type", 1)
+                ],
+                "name": "asset_project_id_type_index",
+                "unique": False
             }
         ]

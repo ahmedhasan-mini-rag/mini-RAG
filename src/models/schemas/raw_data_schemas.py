@@ -1,17 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from controllers import ProjectController
 
 class ProcessRequest(BaseModel):
-    file_id: str
-    chunk_size: int | None = 120
-    overlap_size: int | None = 20
+    asset_name: str | None = None
+    chunk_size: int | None = Field(default=120, gt=10)
+    overlap_size: int | None = Field(default=20, ge=0)
     do_reset: bool | None = False
-
-    def check_file_exists(cls, project_id: str):
-        project_path = ProjectController().get_project_path(
-            project_id=project_id,
-            create_if_missing=False
-        )
-        
-        file_path = project_path / cls.file_id
-        return file_path.exists()

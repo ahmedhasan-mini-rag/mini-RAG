@@ -1,41 +1,48 @@
 import os
+import logging
 from pathlib import Path
+from typing import Any
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .BaseController import BaseController
 from .ProjectController import ProjectController
-from models.enums import ProcessingEnums
+from models.enums import ProcessingEnums, AssetTypeEnums, ResponseSignal
+from models.schemas import DataChunk, Project, ProcessRequest, Asset
+from models import ChunkModel, AssetModel
 
 class ProcessController(BaseController):
-    def __init__(self, project_id: str):
-        self.project_id = project_id
-        self.project_path = ProjectController().get_project_path(project_id=project_id)
+    def __init__(self, project: Project):
+        super().__init__()
+        self.project = project
+        self.project_path = ProjectController().get_project_path(
+            project_id=project.project_id
+        )
     
-    def get_file_extension(self, file_id: str) -> str:
-        return os.path.splitext(file_id)[-1]
+    def get_file_asset_extension(self, asset_name: str) -> str:
+        return os.path.splitext(asset_name)[-1]
     
-    def get_file_loader(self, file_id: str):
-        file_ext = self.get_file_extension(file_id)
-        file_path = self.project_path / file_id
+    def get_asset_loader(self, asset_name: str):
+        asset_ext = self.get_file_asset_extension(asset_name)
+        asset_path = self.project_path / asset_name
 
-        if file_ext == ProcessingEnums.TXT.value:
-            loader = TextLoader(file_path, encoding='utf-8')
+        if asset_ext == ProcessingEnums.TXT.value:
+            loader = TextLoader(asset_path, encoding='utf-8')
 
-        elif file_ext == ProcessingEnums.PDF.value:
-            loader = PyMuPDFLoader(file_path)
+        elif asset_ext == ProcessingEnums.PDF.value:
+            loader = PyMuPDFLoader(asset_path)
         
         else:
             loader = None
 
         return loader
     
-    def get_file_content(self, file_id: str) -> list:
-        loader = self.get_file_loader(file_id=file_id)
+    def get_file_content(self, asset_name: str) -> list:
+        loader = self.get_asset_loader(asset_name=asset_name)
 
         return loader.load()
     
-    def process_file_content(self, file_content: list,
+    def split_file_content(self, file_content: list,
                             chunk_size: int, overlap_size: int) -> list:
 
                             splitter = RecursiveCharacterTextSplitter(
@@ -56,3 +63,119 @@ class ProcessController(BaseController):
                                 metadatas=file_metadata
                             )
                             return chunks
+
+
+    async def process_tasks(
+        self, 
+        process_request: ProcessRequest, 
+        chunk_model: ChunkModel,
+        asset_model: AssetModel,
+        logger: logging.Logger
+    ) -> dict[str, Any]:
+    
+        kwargs = {
+            'chunk_size': process_request.chunk_size,
+            'overlap_size': process_request.overlap_size,
+            'chunk_model': chunk_model,
+            'logger': logger
+        }
+
+        if process_request.asset_name:
+            logger.info(f"processing single file: {process_request.asset_name}")
+
+            asset = await asset_model.get_asset(
+                asset_project_id=self.project.id,
+                asset_name=process_request.asset_name
+            )
+
+            if asset is None:
+                logger.error(f"Asset '{process_request.asset_name}' not found in the database.")
+                return {
+                    'processed_files': 0,
+                    'inserted_chunks': 0,
+                    'failed_files': 1,
+                    'files_not_found': [process_request.asset_name]
+                }
+            
+            assets = [asset]
+
+        else:
+            logger.info(f"processing all files of project: {self.project.project_id}")
+            assets = await asset_model.get_all_project_assets(
+                asset_project_id=self.project.id, 
+                asset_type=AssetTypeEnums.FILE.value
+            )
+
+        n_chunks, n_files_proc, not_found = await self.process_files(
+            assets=assets, **kwargs
+        )
+
+        return {
+            'processed_files': n_files_proc,
+            'inserted_chunks': n_chunks,
+            'failed_files': len(assets) - n_files_proc,
+            'files_not_found': not_found
+        }
+
+    async def process_files(
+        self, 
+        assets: list[Asset], 
+        chunk_size: int, 
+        overlap_size: int,
+        chunk_model: ChunkModel,
+        logger: logging.Logger
+    ) -> tuple[int, int, list[str]]:
+
+            not_found = []
+            all_chunks = []
+            n_chunks, n_files_proc = 0, 0
+
+            for asset in assets:
+                is_valid = self.validate_existence(asset, logger)
+                
+                if not is_valid:
+                    not_found.append(asset.asset_name)
+                    continue
+                
+                file_content = self.get_file_content(asset_name=asset.asset_name)
+
+                chunks = self.split_file_content(
+                    file_content=file_content,
+                    chunk_size=chunk_size, 
+                    overlap_size=overlap_size
+                )
+
+                if not chunks:
+                    logger.error(
+                        f"Error while processing the asset: {asset.asset_name}, " 
+                        f"{ResponseSignal.PROCESSING_FAIL.value}"
+                    )
+                    continue
+
+                data_chunks = [
+                    DataChunk(
+                        chunk_text=chunk.page_content,
+                        chunk_metadata=chunk.metadata,
+                        chunk_order=i,
+                        chunk_project_id=self.project.id,
+                        chunk_asset_id=asset.id
+                    )
+                    for i, chunk in enumerate(chunks, 1)
+                ]
+
+                all_chunks.extend(data_chunks)
+                n_files_proc += 1
+
+            if all_chunks:
+                n_chunks = await chunk_model.insert_multiple_chunks(chunks=all_chunks)
+
+            return n_chunks, n_files_proc, not_found
+
+    def validate_existence(self, asset: Asset, logger: logging.Logger) -> bool:
+        if not self.check_file_exists(self.project.project_id, asset.asset_name):
+            logger.error(
+                f"Error while processing file {asset.asset_name}, "
+                "the file not found on the disk."
+            )
+            return False
+        return True
