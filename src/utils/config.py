@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = None
     OPENAI_BASE_URL: str = None
     COHERE_API_KEY: str = None
+    GOOGLE_API_KEY: str = None
 
     CHAT_MODEL_ID: str
     EMBEDDING_MODEL_ID: str
