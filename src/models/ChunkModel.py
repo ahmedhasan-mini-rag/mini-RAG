@@ -11,7 +11,7 @@ from .schemas import DataChunk
 class ChunkModel(CustomBaseModel):
     def __init__(self, db_client: object):
         super().__init__(db_client)
-        self.collection = db_client[DataBaseEnums.COLLECTION_CHUNK_NAME.value]
+        self.collection = db_client[DataBaseEnums.COLLECTION_CHUNK_NAME]
     
     @classmethod
     async def create_instance(cls, db_client: object) -> ChunkModel:

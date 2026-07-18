@@ -4,7 +4,7 @@ import aiofiles
 import logging
 import os
 
-from helpers.config import get_settings, Settings
+from utils.config import get_settings, Settings
 from controllers import DataController, ProcessController
 from models.enums import ResponseSignal, AssetTypeEnums
 from models.schemas import ProcessRequest, DataChunk, Asset
@@ -17,7 +17,7 @@ data_router = APIRouter(
     tags=['api_v1', 'data']
 )
 
-logger = logging.getLogger('uvicorn.error')
+logger = logging.getLogger(__name__)
 
 @data_router.post('/upload/{project_id}')
 async def upload_file(
@@ -45,15 +45,14 @@ async def upload_file(
     successful_uploads, failed_uploads = await data_controller.process_tasks(
         files=files,
         asset_model=asset_model,
-        logger=logger,
     )
 
     if not successful_uploads:
         status_code = status.HTTP_400_BAD_REQUEST
-        final_response = ResponseSignal.FILE_UPLOAD_FAIL.value
+        final_response = ResponseSignal.FILE_UPLOAD_FAIL
     else:
         status_code = status.HTTP_200_OK
-        final_response = ResponseSignal.FILE_UPLOAD_SUCCESS.value
+        final_response = ResponseSignal.FILE_UPLOAD_SUCCESS
     
     return JSONResponse(
         status_code=status_code,
@@ -86,7 +85,7 @@ async def process_file(
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
-                'response': ResponseSignal.PROJECT_NOT_FOUND.value
+                'response': ResponseSignal.PROJECT_NOT_FOUND
             }
         )
 
@@ -107,7 +106,6 @@ async def process_file(
         process_request=process_request,
         chunk_model=chunk_model,
         asset_model=asset_model,
-        logger=logger
     )
     
     if results['processed_files'] > 0:
@@ -120,7 +118,7 @@ async def process_file(
     return JSONResponse(
         status_code=status_code,
         content={
-            'response' : final_response.value,
+            'response' : final_response,
             'processing_details' : results
         }
     )

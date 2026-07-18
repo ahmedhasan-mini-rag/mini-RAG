@@ -10,7 +10,7 @@ from .schemas import Asset
 class AssetModel(CustomBaseModel):
     def __init__(self, db_client: object):
         super().__init__(db_client)
-        self.collection = db_client[DataBaseEnums.COLLECTION_ASSET_NAME.value]
+        self.collection = db_client[DataBaseEnums.COLLECTION_ASSET_NAME]
     
     @classmethod
     async def create_instance(cls ,db_client: object) -> AssetModel:

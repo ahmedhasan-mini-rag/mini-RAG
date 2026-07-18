@@ -11,6 +11,8 @@ from models.enums import ProcessingEnums, AssetTypeEnums, ResponseSignal
 from models.schemas import DataChunk, Project, ProcessRequest, Asset
 from models import ChunkModel, AssetModel
 
+logger = logging.getLogger(__name__)
+
 class ProcessController(BaseController):
     def __init__(self, project: Project):
         super().__init__()
@@ -19,20 +21,21 @@ class ProcessController(BaseController):
             project_id=project.project_id
         )
     
-    def get_file_asset_extension(self, asset_name: str) -> str:
+    def get_file_asset_extension(self, asset_name: str) -> str | None:
         return os.path.splitext(asset_name)[-1]
     
     def get_asset_loader(self, asset_name: str):
         asset_ext = self.get_file_asset_extension(asset_name)
         asset_path = self.project_path / asset_name
 
-        if asset_ext == ProcessingEnums.TXT.value:
+        if asset_ext == ProcessingEnums.TXT:
             loader = TextLoader(asset_path, encoding='utf-8')
 
-        elif asset_ext == ProcessingEnums.PDF.value:
+        elif asset_ext == ProcessingEnums.PDF:
             loader = PyMuPDFLoader(asset_path)
         
         else:
+            logger.warning(f"Unsupported file extension '{asset_ext}' for asset '{asset_name}'")
             loader = None
 
         return loader
@@ -70,14 +73,12 @@ class ProcessController(BaseController):
         process_request: ProcessRequest, 
         chunk_model: ChunkModel,
         asset_model: AssetModel,
-        logger: logging.Logger
     ) -> dict[str, Any]:
     
         kwargs = {
             'chunk_size': process_request.chunk_size,
             'overlap_size': process_request.overlap_size,
             'chunk_model': chunk_model,
-            'logger': logger
         }
 
         if process_request.asset_name:
@@ -100,10 +101,10 @@ class ProcessController(BaseController):
             assets = [asset]
 
         else:
-            logger.info(f"processing all files of project: {self.project.project_id}")
+            logger.info(f"processing all assets of project: {self.project.project_id}")
             assets = await asset_model.get_all_project_assets(
                 asset_project_id=self.project.id, 
-                asset_type=AssetTypeEnums.FILE.value
+                asset_type=AssetTypeEnums.FILE
             )
 
         n_chunks, n_files_proc, not_found = await self.process_files(
@@ -123,7 +124,6 @@ class ProcessController(BaseController):
         chunk_size: int, 
         overlap_size: int,
         chunk_model: ChunkModel,
-        logger: logging.Logger
     ) -> tuple[int, int, list[str]]:
 
             not_found = []
@@ -131,24 +131,32 @@ class ProcessController(BaseController):
             n_chunks, n_files_proc = 0, 0
 
             for asset in assets:
-                is_valid = self.validate_existence(asset, logger)
+                is_valid = self.validate_existence(asset)
                 
                 if not is_valid:
                     not_found.append(asset.asset_name)
                     continue
                 
-                file_content = self.get_file_content(asset_name=asset.asset_name)
+                try:
+                    file_content = self.get_file_content(asset_name=asset.asset_name)
 
-                chunks = self.split_file_content(
-                    file_content=file_content,
-                    chunk_size=chunk_size, 
-                    overlap_size=overlap_size
-                )
+                    chunks = self.split_file_content(
+                        file_content=file_content,
+                        chunk_size=chunk_size, 
+                        overlap_size=overlap_size
+                    )
+                
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error processing asset '{asset.asset_name}': {e}",
+                        exc_info=True
+                    )
+                    continue
 
                 if not chunks:
                     logger.error(
                         f"Error while processing the asset: {asset.asset_name}, " 
-                        f"{ResponseSignal.PROCESSING_FAIL.value}"
+                        f"{ResponseSignal.PROCESSING_FAIL}"
                     )
                     continue
 
@@ -169,9 +177,14 @@ class ProcessController(BaseController):
             if all_chunks:
                 n_chunks = await chunk_model.insert_multiple_chunks(chunks=all_chunks)
 
+            logger.info(
+                f"Batch complete: processed {n_files_proc}/{len(assets)} files, "
+                f"inserted {n_chunks} chunks, {len(not_found)} not found."
+            )
+
             return n_chunks, n_files_proc, not_found
 
-    def validate_existence(self, asset: Asset, logger: logging.Logger) -> bool:
+    def validate_existence(self, asset: Asset) -> bool:
         if not self.check_file_exists(self.project.project_id, asset.asset_name):
             logger.error(
                 f"Error while processing file {asset.asset_name}, "

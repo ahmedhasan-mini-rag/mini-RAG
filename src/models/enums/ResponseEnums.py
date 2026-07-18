@@ -1,6 +1,6 @@
 from enum import Enum
 
-class ResponseSignal(Enum):
+class ResponseSignal(Enum, str):
     FILE_VALIDATION_SUCCESS = 'File validated successfully'
     FILE_TYPE_NOT_SUPPORTED = 'File type not supported'
     FILE_SIZE_EXCEEDED = 'File size exceeded'

@@ -11,6 +11,8 @@ from models.enums import ResponseSignal, AssetTypeEnums
 from models.schemas import Project, Asset
 from models import AssetModel
 
+logger = logging.getLogger(__name__)
+
 class DataController(BaseController):
     def __init__(self, project: Project):
         super().__init__()
@@ -20,12 +22,12 @@ class DataController(BaseController):
     def validate_uploaded_file(self, file: UploadFile) -> tuple[bool, str]:
         
         if file.content_type not in self.app_settings.FILE_ALLOWED_TYPES:
-            return False, ResponseSignal.FILE_TYPE_NOT_SUPPORTED.value
+            return False, ResponseSignal.FILE_TYPE_NOT_SUPPORTED
             
         if file.size > self.app_settings.FILE_MAX_SIZE * self.file_size_scaler:
-            return False, ResponseSignal.FILE_SIZE_EXCEEDED.value
+            return False, ResponseSignal.FILE_SIZE_EXCEEDED
 
-        return True, ResponseSignal.FILE_VALIDATION_SUCCESS.value
+        return True, ResponseSignal.FILE_VALIDATION_SUCCESS
     
     def generate_unique_filepath(self, original_name: str, project_id: str) -> tuple[Path, str]:
         random_string = self.generate_random_string()
@@ -52,7 +54,6 @@ class DataController(BaseController):
         self, 
         files: list[UploadFile], 
         asset_model: AssetModel, 
-        logger: logging.Logger
     ) -> tuple[list[str], list[dict]]:
 
         successful_uploads = []
@@ -63,6 +64,9 @@ class DataController(BaseController):
             is_valid, response_message = self.validate_uploaded_file(file=file)
             
             if not is_valid:
+                logger.warning(
+                    f"File '{file.filename}' rejected: {response_message}"
+                )
                 failed_uploads.append({
                     'filename': file.filename,
                     'reason': response_message
@@ -83,19 +87,41 @@ class DataController(BaseController):
                 logger.error(f'Error while uploading file {file.filename}: {e}')
                 failed_uploads.append({
                     'filename': file.filename,
-                    'reason': ResponseSignal.FILE_UPLOAD_FAIL.value
+                    'reason': ResponseSignal.FILE_UPLOAD_FAIL
                 })
                 continue
             
             # create the file asset in the database
             asset = Asset(
                 asset_project_id=self.project.id,
-                asset_type=AssetTypeEnums.FILE.value,
+                asset_type=AssetTypeEnums.FILE,
                 asset_name=file_name,
                 asset_size=os.path.getsize(file_path),
             )
-            file_asset = await asset_model.insert_asset(asset=asset)
+
+            try:
+                await asset_model.insert_asset(asset=asset)
+            except Exception as e:
+                logger.error(
+                    f"Failed to save asset record for '{file.filename}': {e}"
+                )
+
+                try:
+                    os.remove(file_path)
+                    logger.info(f"Cleaned up orphan file '{file_name}' from disk.")
+                except OSError as cleanup_err:
+                    logger.error(
+                        f"Failed to clean up orphan file. "
+                        f"Manual removal required at: {file_path} — {cleanup_err}"
+                    )
+
+                failed_uploads.append({
+                    'filename': file.filename,
+                    'reason': ResponseSignal.FILE_UPLOAD_FAIL
+                })
+                continue
             
+            logger.info(f"Successfully uploaded '{file.filename}' as '{file_name}'")
             successful_uploads.append(file.filename)
         
         return successful_uploads, failed_uploads

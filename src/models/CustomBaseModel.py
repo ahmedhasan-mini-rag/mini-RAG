@@ -1,4 +1,4 @@
-from helpers.config import get_settings, Settings
+from utils.config import get_settings, Settings
 
 class CustomBaseModel:
     def __init__(self, db_client):
