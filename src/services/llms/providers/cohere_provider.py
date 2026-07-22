@@ -1,7 +1,7 @@
 from cohere import ClientV2
 import logging
 from ..LLMInterface import LLMInterface
-from ..LLMEnums import Role, CohereEmbeddingType
+from ..LLMEnums import Role, EmbeddingType
 
 class CohereProvider(LLMInterface):
     def __init__(
@@ -69,7 +69,12 @@ class CohereProvider(LLMInterface):
         
         return response.message.content[0].text
 
-    def generate_embedding(self, text: str, document_type: str = None):
+    def generate_embedding(
+        self, 
+        text: str, 
+        document_type: str = EmbeddingType.DOCUMENT
+    ) -> list[float]:
+    
         if not self.client:
             self.logger.error('Error: the Cohere client was not set.')
             return None
@@ -78,16 +83,7 @@ class CohereProvider(LLMInterface):
             self.logger.error('Error: the Cohere embedding model was not set.')
             return None
 
-        match document_type.lower():
-            case CohereEmbeddingType.SEARCH_DOCUMENT:
-                input_type = CohereEmbeddingType.SEARCH_DOCUMENT
-
-            case CohereEmbeddingType.SEARCH_QUERY:
-                input_type = CohereEmbeddingType.SEARCH_QUERY
-
-            case _:
-                input_type = CohereEmbeddingType.SEARCH_DOCUMENT
-                self.logger.warning(f"Warning: the document type is not valid. Using default value ({input_type}).")
+        input_type = self._resolve_document_type(document_type)
 
         kwargs = {
             "model": self.embedding_model,
@@ -105,3 +101,22 @@ class CohereProvider(LLMInterface):
             return None
 
         return response.embeddings.float[0]
+    
+    def _resolve_document_type(self, document_type: str) -> EmbeddingType:
+        """Map a raw string to the EmbeddingType enum with a safe default."""
+
+        TASK_MAP = {
+            EmbeddingType.DOCUMENT: "search_document",
+            EmbeddingType.QUERY:    "search_query",
+        }
+
+        task = TASK_MAP.get(document_type, None)
+
+        if task is None:
+            self.logger.warning(
+                f"Invalid document type '{document_type}'. "
+                f"Defaulting to {EmbeddingType.DOCUMENT}."
+            )
+            return TASK_MAP[EmbeddingType.DOCUMENT]
+
+        return task

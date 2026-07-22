@@ -11,10 +11,6 @@ class Role(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
-class CohereEmbeddingType(str, Enum):
-    SEARCH_DOCUMENT = "search_document"
-    SEARCH_QUERY = "search_query"
-
-class GoogleEmbeddingType(str, Enum):
+class EmbeddingType(str, Enum):
     DOCUMENT = "document"
     QUERY = "query"

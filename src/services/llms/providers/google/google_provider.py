@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 import logging
 from ...LLMInterface import LLMInterface
-from ...LLMEnums import Role, GoogleEmbeddingType
+from ...LLMEnums import Role, EmbeddingType
 from .embedding_adapter import get_embedding_adapter
 
 class GoogleProvider(LLMInterface):
@@ -91,7 +91,7 @@ class GoogleProvider(LLMInterface):
         
         return response.output_text
     
-    def generate_embedding(self, text: str, document_type: str = None):
+    def generate_embedding(self, text: str, document_type: str = EmbeddingType.DOCUMENT):
         if not self.client:
             self.logger.error('Error: the Google client was not set.')
             return None
@@ -109,14 +109,13 @@ class GoogleProvider(LLMInterface):
 
         return embedding
 
-    def _resolve_document_type(self, document_type: str) -> GoogleEmbeddingType:
-        """Map a raw string to the GoogleEmbeddingType enum with a safe default."""
-        if document_type:
-            try:
-                return GoogleEmbeddingType(document_type.lower())
-            except ValueError:
-                self.logger.warning(
-                    f"Invalid document type '{document_type}'. "
-                    f"Defaulting to {GoogleEmbeddingType.DOCUMENT}."
-                )
-        return GoogleEmbeddingType.DOCUMENT
+    def _resolve_document_type(self, document_type: str) -> EmbeddingType:
+        """Map a raw string to the EmbeddingType enum with a safe default."""
+        try:
+            return EmbeddingType(document_type.lower())
+        except ValueError:
+            self.logger.warning(
+                f"Invalid document type '{document_type}'. "
+                f"Defaulting to {EmbeddingType.DOCUMENT}."
+            )
+            return EmbeddingType.DOCUMENT

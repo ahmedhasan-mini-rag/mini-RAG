@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     DEFAULT_MAX_INPUT_CHARS: int
     DEFAULT_TEMPERATURE: float
 
+    VECTORDB_PROVIDER: str
+    VECTORDB_SIMILARITY_METRIC: str
+
 def get_settings() -> Settings:
     meta_data = _read_toml()
     settings = Settings( 
