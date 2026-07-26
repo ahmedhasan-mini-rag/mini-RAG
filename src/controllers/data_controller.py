@@ -5,11 +5,15 @@ import os
 import logging
 from pathlib import Path
 
-from .BaseController import BaseController
-from .ProjectController import ProjectController
+from .base_controller import BaseController
+from .project_controller import ProjectController
 from models.enums import ResponseSignal, AssetTypeEnums
 from models.schemas import Project, Asset
 from models import AssetModel
+from exceptions import (
+    FileValidationError, FileIOError as AppFileIOError,
+    DatabaseWriteError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +23,19 @@ class DataController(BaseController):
         self.project = project
         self.file_size_scaler = 1024 * 1024
 
-    def validate_uploaded_file(self, file: UploadFile) -> tuple[bool, str]:
+    def validate_uploaded_file(self, file: UploadFile) -> None:
+        """Validate file type and size. Raises FileValidationError on failure."""
         
         if file.content_type not in self.app_settings.FILE_ALLOWED_TYPES:
-            return False, ResponseSignal.FILE_TYPE_NOT_SUPPORTED
+            raise FileValidationError(ResponseSignal.FILE_TYPE_NOT_SUPPORTED)
             
         if file.size > self.app_settings.FILE_MAX_SIZE * self.file_size_scaler:
-            return False, ResponseSignal.FILE_SIZE_EXCEEDED
-
-        return True, ResponseSignal.FILE_VALIDATION_SUCCESS
+            raise FileValidationError(ResponseSignal.FILE_SIZE_EXCEEDED)
     
-    def generate_unique_filepath(self, original_name: str, project_id: str) -> tuple[Path, str]:
+    def generate_unique_filepath(self, original_name: str, project_name: str) -> tuple[Path, str]:
         random_string = self.generate_random_string()
         project_path = ProjectController().get_project_path(
-            project_id=project_id, create_if_missing=True
+            project_name=project_name, create_if_missing=True
             )
 
         cleaned_file_name = self.clean_file_name(original_name)
@@ -40,7 +43,7 @@ class DataController(BaseController):
         file_path = project_path / '_'.join((random_string, cleaned_file_name)) 
 
         while file_path.exists():
-            self.generate_unique_filename(cleaned_file_name, project_id)
+            self.generate_unique_filepath(cleaned_file_name, project_name)
         
         return file_path, file_path.name
 
@@ -61,21 +64,18 @@ class DataController(BaseController):
 
         for file in files:
             
-            is_valid, response_message = self.validate_uploaded_file(file=file)
-            
-            if not is_valid:
-                logger.warning(
-                    f"File '{file.filename}' rejected: {response_message}"
-                )
+            try:
+                self.validate_uploaded_file(file=file)
+            except FileValidationError as e:
                 failed_uploads.append({
                     'filename': file.filename,
-                    'reason': response_message
+                    'reason': e.message
                 })
                 continue 
             
             file_path, file_name = self.generate_unique_filepath(
                 original_name=file.filename,
-                project_id=self.project.project_id
+                project_name=self.project.project_name
             )
 
             try:
@@ -83,7 +83,7 @@ class DataController(BaseController):
                     while chunk := await file.read(self.app_settings.FILE_CHUNK_SIZE):
                         await f.write(chunk)
             
-            except Exception as e:
+            except OSError as e:
                 logger.error(f'Error while uploading file {file.filename}: {e}')
                 failed_uploads.append({
                     'filename': file.filename,
@@ -101,9 +101,9 @@ class DataController(BaseController):
 
             try:
                 await asset_model.insert_asset(asset=asset)
-            except Exception as e:
+            except DatabaseWriteError as e:
                 logger.error(
-                    f"Failed to save asset record for '{file.filename}': {e}"
+                    f"Failed to save asset record for '{file.filename}': {e.message}"
                 )
 
                 try:
@@ -122,6 +122,6 @@ class DataController(BaseController):
                 continue
             
             logger.info(f"Successfully uploaded '{file.filename}' as '{file_name}'")
-            successful_uploads.append(file.filename)
+            successful_uploads.append(file_name)
         
         return successful_uploads, failed_uploads

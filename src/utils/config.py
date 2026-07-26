@@ -5,6 +5,8 @@ import logging
 import logging.config
 from pathlib import Path
 
+from exceptions import InvalidConfigError
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 def _read_toml() -> dict:
@@ -14,11 +16,9 @@ def _read_toml() -> dict:
         with open(toml_path, "rb") as f:
             project_data = tomllib.load(f)
     except FileNotFoundError:
-        print(f"Error: pyproject.toml file missing at {toml_path}")
-        project_data = {} 
+        raise InvalidConfigError(f"pyproject.toml file missing at {toml_path}")
     except tomllib.TOMLDecodeError:
-        print(f"Error: {toml_path} is corrupted or has invalid formatting.")
-        exit(1)
+        raise InvalidConfigError(f"{toml_path} is corrupted or has invalid formatting")
     
     return project_data.get('project', {})
 
@@ -42,14 +42,14 @@ class Settings(BaseSettings):
     CHAT_MODEL_PROVIDER: str
     EMBEDDING_MODEL_PROVIDER: str
 
-    OPENAI_API_KEY: str = None
-    OPENAI_BASE_URL: str = None
-    COHERE_API_KEY: str = None
-    GOOGLE_API_KEY: str = None
+    OPENAI_API_KEY: str | None = None
+    OPENAI_BASE_URL: str | None = None
+    COHERE_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
 
-    CHAT_MODEL_ID: str
+    CHAT_MODEL_ID: str 
     EMBEDDING_MODEL_ID: str
-    EMBEDDING_SIZE: int
+    EMBEDDING_SIZE: int | None = None
 
     DEFAULT_MAX_OUTPUT_TOKENS: int
     DEFAULT_MAX_INPUT_CHARS: int

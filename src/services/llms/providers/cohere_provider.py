@@ -1,7 +1,9 @@
 from cohere import ClientV2
+from cohere.core import ApiError as CohereApiError
 import logging
-from ..LLMInterface import LLMInterface
-from ..LLMEnums import Role, EmbeddingType
+from ..llm_interface import LLMInterface
+from ..llm_enums import Role, EmbeddingType
+from exceptions import LLMServiceError, InvalidConfigError
 
 class CohereProvider(LLMInterface):
     def __init__(
@@ -34,20 +36,17 @@ class CohereProvider(LLMInterface):
         self, 
         prompt: str, 
         chat_history: list = [], 
-        max_output_tokens: int = None,
-        temperature: float = None
-    ):
-        if not self.client:
-            self.logger.error('Error: the Cohere client was not set.')
-            return None
-        
+        max_output_tokens: int | None = None,
+        temperature: float | None = None
+    ) -> str:
         if not self.chat_model:
-            self.logger.error('Error: the Cohere chat model was not set.')
-            return None
+            raise InvalidConfigError("Cohere chat model not configured")
         
         if len(prompt) > self.default_max_input_chars:
-            self.logger.error(f'Error: the prompt is too long. It should be less than {self.default_max_input_chars} characters.')
-            return None
+            raise InvalidConfigError(
+                f"Prompt too long ({len(prompt)} chars). "
+                f"Max allowed: {self.default_max_input_chars}"
+            )
         
         chat_history.append(
             {
@@ -56,53 +55,52 @@ class CohereProvider(LLMInterface):
             }
         )
 
-        response = self.client.chat(
-            model=self.chat_model,
-            messages=chat_history,
-            max_tokens=max_output_tokens or self.default_max_output_tokens,
-            temperature=temperature or self.default_temperature,
-        )
+        try:
+            response = self.client.chat(
+                model=self.chat_model,
+                messages=chat_history,
+                max_tokens=max_output_tokens or self.default_max_output_tokens,
+                temperature=temperature or self.default_temperature,
+            )
+        except CohereApiError as e:
+            raise LLMServiceError("Cohere text generation failed", detail=str(e)) from e
 
         if not response or not response.message.content[0].text:
-            self.logger.error('Error: failed to generate text (provider: cohere).')
-            return None
+            raise LLMServiceError("Cohere returned empty response for text generation")
         
         return response.message.content[0].text
 
     def generate_embedding(
         self, 
-        text: str, 
+        texts: list[str], 
         document_type: str = EmbeddingType.DOCUMENT
-    ) -> list[float]:
+    ) -> list[list[float]]:
     
-        if not self.client:
-            self.logger.error('Error: the Cohere client was not set.')
-            return None
-        
         if not self.embedding_model:
-            self.logger.error('Error: the Cohere embedding model was not set.')
-            return None
+            raise InvalidConfigError("Cohere embedding model not configured")
 
         input_type = self._resolve_document_type(document_type)
 
         kwargs = {
             "model": self.embedding_model,
-            "texts": [text],
+            "texts": texts,
             "input_type": input_type
         }
 
         if self.embedding_size:
             kwargs["output_dimension"] = self.embedding_size
 
-        response = self.client.embed(**kwargs)
+        try:
+            response = self.client.embed(**kwargs)
+        except CohereApiError as e:
+            raise LLMServiceError("Cohere embedding generation failed", detail=str(e)) from e
 
-        if not response or not response.embeddings.float[0]:
-            self.logger.error('Error: failed to generate embedding (provider: cohere).')
-            return None
+        if not response or not response.embeddings.float:
+            raise LLMServiceError("Cohere returned empty response for embedding generation")
 
-        return response.embeddings.float[0]
+        return response.embeddings.float
     
-    def _resolve_document_type(self, document_type: str) -> EmbeddingType:
+    def _resolve_document_type(self, document_type: str) -> str:
         """Map a raw string to the EmbeddingType enum with a safe default."""
 
         TASK_MAP = {

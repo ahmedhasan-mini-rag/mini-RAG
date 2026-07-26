@@ -1,28 +1,41 @@
-from qdrant_client import QdrantClient, models
-from qdrant_client.models import PointStruct
+from qdrant_client import AsyncQdrantClient, models
+from qdrant_client.models import PointStruct, Distance
 import logging
 
-from ..VectorDBInterface import VectorDBInterface
-from .. VectorDBEnums import SimilarityMetric
+from ..vectordb_interface import VectorDBInterface
+from ..vectordb_enums import SimilarityMetric
+from exceptions import VectorDBServiceError
 
 class QdrantProvider(VectorDBInterface):
     def __init__(self, dp_path: str, similarity_metric: str):
-        self.client = QdrantClient(url=dp_path)
-        
-        if similarity_metric.lower() == SimilarityMetric.DOT:
-            self.sim_metric = SimilarityMetric.DOT
-        else:
-            self.sim_metric = SimilarityMetric.COSINE
+        self.client = AsyncQdrantClient(path=dp_path)
         
         self.logger = logging.getLogger(__name__)
 
-    def collection_exists(self, collection_name: str) -> bool:
-        return self.client.collection_exists(collection_name=collection_name)
+        self.sim_metric = self._resolve_similarity_metric(metric=similarity_metric)
 
-    def delete_collection(self, collection_name: str) -> bool:
-        return self.client.delete_collection(collection_name=collection_name)
+    async def disconnect(self):
+        await self.client.close() 
+    
+    async def collection_exists(self, collection_name: str) -> bool:
+        try:
+            return await self.client.collection_exists(collection_name=collection_name)
+        except Exception as e:
+            raise VectorDBServiceError(
+                f"Failed to check collection existence for '{collection_name}'",
+                detail=str(e)
+            ) from e
 
-    def create_collection(
+    async def delete_collection(self, collection_name: str) -> bool:
+        try:
+            return await self.client.delete_collection(collection_name=collection_name)
+        except Exception as e:
+            raise VectorDBServiceError(
+                f"Failed to delete collection '{collection_name}'",
+                detail=str(e)
+            ) from e
+
+    async def create_collection(
         self, 
         collection_name: str,
         embedding_size: int,
@@ -30,11 +43,11 @@ class QdrantProvider(VectorDBInterface):
     ) -> bool:
 
         if do_reset:
-            self.delete_collection(collection_name)
-        
-        if not self.collection_exists(collection_name):
+            await self.delete_collection(collection_name)
+
+        if not await self.collection_exists(collection_name):
             try:
-                self.client.create_collection(
+                await self.client.create_collection(
                     collection_name=collection_name,
                     vectors_config=models.VectorParams(
                         size=embedding_size, 
@@ -42,8 +55,10 @@ class QdrantProvider(VectorDBInterface):
                     ),
                 )
             except Exception as e:
-                self.logger.error(f"Error while trying to create a collection: {e}")
-                return False
+                raise VectorDBServiceError(
+                    f"Failed to create collection '{collection_name}'",
+                    detail=str(e)
+                ) from e
         else:
             self.logger.warning(
                 "Trying to create a collection that already exists. "
@@ -53,16 +68,28 @@ class QdrantProvider(VectorDBInterface):
         
         return True
 
-    def get_collection_info(self, collection_name: str) -> dict:
-        return self.client.get_collection(
-            collection_name=collection_name
-        ).model_dump()
+    async def get_collection_info(self, collection_name: str) -> dict:
+        try:
+            result = await self.client.get_collection(
+                collection_name=collection_name
+            )
+        except Exception as e:
+            raise VectorDBServiceError(
+                f"Failed to get collection info for '{collection_name}'",
+                detail=str(e)
+            ) from e
 
-    def list_collections(self) -> list[str]:
-        collections = self.client.get_collections()
+        return result.model_dump()
+
+    async def list_collections(self) -> list[str]:
+        try:
+            collections = await self.client.get_collections()
+        except Exception as e:
+            raise VectorDBServiceError("Failed to list collections", detail=str(e)) from e
+
         return [c.name for c in collections.collections]
     
-    def insert_vector(
+    async def insert_vector(
         self, 
         collection_name: str,
         vector: list[float],
@@ -70,12 +97,11 @@ class QdrantProvider(VectorDBInterface):
         vector_id: int | str
     ) -> bool:
 
-        if not self.collection_exists(collection_name):
-            self.logger.error(f"Collection '{collection_name}' does not exist.")
-            return False
+        if not await self.collection_exists(collection_name):
+            raise VectorDBServiceError(f"Collection '{collection_name}' does not exist")
         
         try:
-            self.client.upsert(
+            await self.client.upsert(
                 collection_name=collection_name,
                 points=[
                     PointStruct(
@@ -86,53 +112,49 @@ class QdrantProvider(VectorDBInterface):
                 ]
             )
         except Exception as e:
-            self.logger.error(f"Error while trying to insert a single vector: {e}")
-            return False
+            raise VectorDBServiceError(
+                f"Failed to insert vector into '{collection_name}'",
+                detail=str(e)
+            ) from e
 
         return True
 
-    def insert_vectors(
+    async def insert_vectors(
         self, 
         collection_name: str,
         vectors: list[list[float]],
         metadata: list[dict],
         ids: list[int | str],
-        batch_size: int = 100,
     ) -> bool:
 
         if len(vectors) != len(metadata) != len(ids):
-            self.logger.error("Vectors, metadata, and ids must have the same length.")
-            return False
-        
-        for i in range(0, len(vectors), batch_size):
-            j = i+batch_size
-
-            batch_vectors = vectors[i : j]
-            batch_metadata = metadata[i : j]
-            batch_ids = ids[i : j]
+            raise VectorDBServiceError(
+                "Vectors, metadata, and ids must have the same length"
+            )
             
-            points = [
-                PointStruct(
-                    id=batch_ids[k],
-                    vector=batch_vectors[k],
-                    payload=batch_metadata[k]
-                )
+        points = [
+            PointStruct(
+                id=idx,
+                vector=vec,
+                payload=metadata
+            )
+            for idx, vec, metadata in zip(ids, vectors, metadata)
+        ]
 
-                for k in range(len(batch_ids))
-            ]
-
-            try:
-                self.client.upsert(
-                    collection_name=collection_name,
-                    points=points
-                )
-            except Exception as e:
-                self.logger.error(f"Error while trying to insert multiple vectors in a batch: {e}")
-                return False
+        try:
+            await self.client.upsert(
+                collection_name=collection_name,
+                points=points
+            )
+        except Exception as e:
+            raise VectorDBServiceError(
+                f"Failed to insert vectors into '{collection_name}'",
+                detail=str(e)
+            ) from e
 
         return True
 
-    def search_by_vector(
+    async def search_by_vector(
         self, 
         collection_name: str, 
         vector: list[float], 
@@ -140,13 +162,32 @@ class QdrantProvider(VectorDBInterface):
     ) -> list[dict]:
 
         try:
-            search_results = self.client.query_points(
+            search_results = await self.client.query_points(
                 collection_name=collection_name,
                 query=vector,
                 limit=top_k
             )
         except Exception as e:
-            self.logger.error(f"Error while trying to search for similar vectors: {e}")
-            return []
+            raise VectorDBServiceError(
+                f"Failed to search in '{collection_name}'",
+                detail=str(e)
+            ) from e
 
         return [point.model_dump() for point in search_results.points]
+
+    def _resolve_similarity_metric(self, metric: str) -> Distance:
+        METRIC_TYPE = {
+            'dot': Distance.DOT,
+            'cosine': Distance.COSINE,
+            'euclid': Distance.EUCLID,
+        }
+
+        chosen = METRIC_TYPE.get(metric, None)
+        if chosen is None:
+            self.logger.warning(
+                f"Invalid similarity metric '{metric}'. "
+                f"Defaulting to {SimilarityMetric.COSINE}."
+            )
+            return METRIC_TYPE['cosine']
+
+        return chosen

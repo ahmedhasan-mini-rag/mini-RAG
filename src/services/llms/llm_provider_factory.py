@@ -1,6 +1,7 @@
 from .providers import OpenAIProvider, CohereProvider, GoogleProvider
-from .LLMEnums import Provider
+from .llm_enums import Provider
 from utils.config import Settings
+from exceptions import InvalidConfigError
 
 class LLMProviderFactory:
     def __init__(self, config: Settings):
@@ -34,6 +35,6 @@ class LLMProviderFactory:
                 )
             
             case _:
-                client = None
+                raise InvalidConfigError(f"Unknown LLM provider: '{provider}'")
         
         return client

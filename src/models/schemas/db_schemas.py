@@ -9,20 +9,20 @@ class Project(BaseModel):
     )
 
     id: ObjectId | None = Field(default=None, alias='_id')
-    project_id: str = Field(min_length=1)
+    project_name: str = Field(min_length=1)
 
-    @field_validator('project_id')
-    def validate_project_id(cls, value):
-        if not re.match(r'^[a-zA-Z0-9\.-]+$', value):
-            raise ValueError('<project_id> must contain only alphanumeric characters, dashes, or dots')
+    @field_validator('project_name')
+    def validate_project_name(cls, value):
+        if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+            raise ValueError('<project_name> must contain only alphanumeric characters, underscores, or dashes')
         return value
 
     @staticmethod
     def get_indexes():
         return [
             {
-                'keys' : [('project_id', 1)],
-                'name' : 'project_id_index',
+                'keys' : [('project_name', 1)],
+                'name' : 'project_name_index',
                 'unique' : True
             }
         ]
@@ -58,8 +58,8 @@ class Asset(BaseModel):
     asset_project_id: ObjectId
     asset_type: str = Field(min_length=1)
     asset_name: str = Field(min_length=1)
-    asset_size: int = Field(ge=0, default=None)
-    asset_config: dict = Field(default=None)
+    asset_size: int | None = Field(ge=0, default=None)
+    asset_config: dict = Field(default={})
     asset_created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @staticmethod

@@ -1,9 +1,10 @@
 from google import genai
-from google.genai import types
+from google.genai import types, errors as genai_errors
 import logging
-from ...LLMInterface import LLMInterface
-from ...LLMEnums import Role, EmbeddingType
+from ...llm_interface import LLMInterface
+from ...llm_enums import Role, EmbeddingType
 from .embedding_adapter import get_embedding_adapter
+from exceptions import LLMServiceError, InvalidConfigError
 
 class GoogleProvider(LLMInterface):
     def __init__(
@@ -25,7 +26,7 @@ class GoogleProvider(LLMInterface):
         self._system_message = None
         self._embedding_adapter = None
 
-        self.client = genai(api_key=api_key)
+        self.client = genai.Client(api_key=api_key)
 
         self.logger = logging.getLogger(__name__)
     
@@ -38,7 +39,7 @@ class GoogleProvider(LLMInterface):
         self._embedding_adapter = get_embedding_adapter(self.client, model_id)
 
     @property
-    def system_message(self) -> str:
+    def system_message(self) -> str | None:
         return self._system_message
 
     @system_message.setter
@@ -52,21 +53,17 @@ class GoogleProvider(LLMInterface):
         self, 
         prompt: str, 
         chat_history: list = [], 
-        max_output_tokens: int = None,
-        temperature: float = None
-    ):
-        if not self.client:
-            self.logger.error('Error: the Google client was not set.')
-            return None
-        
+        max_output_tokens: int | None = None,
+        temperature: float | None = None
+    ) -> str:
         if not self.chat_model:
-            self.logger.error('Error: the Google chat model was not set.')
-            return None
+            raise InvalidConfigError("Google chat model not configured")
         
         if len(prompt) > self.default_max_input_chars:
-            self.logger.error(f'Error: the prompt is too long. It should be less than {self.default_max_input_chars} characters.')
-            return None
-        
+            raise InvalidConfigError(
+                f"Prompt too long ({len(prompt)} chars). "
+                f"Max allowed: {self.default_max_input_chars}"
+            )
 
         kwargs = {
             "model": self.chat_model,
@@ -81,33 +78,42 @@ class GoogleProvider(LLMInterface):
         if self._system_message:
             kwargs["system_instruction"] = self._system_message
 
-        response = self.client.interactions.create(**kwargs)
+        try:
+            response = self.client.interactions.create(**kwargs)
+        except genai_errors.APIError as e:
+            raise LLMServiceError("Google text generation failed", detail=str(e)) from e
 
         self._previous_interaction_id = response.id
 
         if not response or not response.output_text:
-            self.logger.error('Error: failed to generate text (provider: google).')
-            return None
+            raise LLMServiceError("Google returned empty response for text generation")
         
         return response.output_text
     
-    def generate_embedding(self, text: str, document_type: str = EmbeddingType.DOCUMENT):
-        if not self.client:
-            self.logger.error('Error: the Google client was not set.')
-            return None
-        
+    def generate_embedding(
+        self, 
+        texts: list[str], 
+        document_type: str = EmbeddingType.DOCUMENT
+    ) -> list[list[float]]:
+
         if not self.embedding_model:
-            self.logger.error('Error: the Google embedding model was not set.')
-            return None
+            raise InvalidConfigError("Google embedding model not configured")
 
         input_type = self._resolve_document_type(document_type)
-        embedding = self._embedding_adapter.embed(text, input_type, self.embedding_size)
 
-        if not embedding:
-            self.logger.error('Error: failed to generate embedding (provider: google).')
-            return None
+        try:
+            embeddings = self._embedding_adapter.embed(
+                texts, input_type, self.embedding_size
+            )
+        except genai_errors.APIError as e:
+            raise LLMServiceError(
+                "Google embedding generation failed", detail=str(e)
+            ) from e
 
-        return embedding
+        if not embeddings:
+            raise LLMServiceError("Google returned empty response for embedding generation")
+
+        return embeddings
 
     def _resolve_document_type(self, document_type: str) -> EmbeddingType:
         """Map a raw string to the EmbeddingType enum with a safe default."""

@@ -1,11 +1,15 @@
 """Operations of the 'assets' collection in the database."""
 
 from __future__ import annotations
-from bson import ObjectId
 
-from .CustomBaseModel import CustomBaseModel
+from bson import ObjectId
+from pymongo.errors import PyMongoError
+
+from .custom_base_model import CustomBaseModel
 from .enums import DataBaseEnums
 from .schemas import Asset
+from exceptions import AssetNotFoundError, DatabaseReadError, DatabaseWriteError
+
 
 class AssetModel(CustomBaseModel):
     def __init__(self, db_client: object):
@@ -30,43 +34,55 @@ class AssetModel(CustomBaseModel):
             )
     
     async def insert_asset(self, asset: Asset) -> Asset:
-        result = await self.collection.insert_one(
-            asset.model_dump(exclude_none=True)
-        )
+        try:
+            result = await self.collection.insert_one(
+                asset.model_dump(exclude_none=True)
+            )
+        except PyMongoError as e:
+            raise DatabaseWriteError(
+                f"Failed to insert asset '{asset.asset_name}'",
+                detail=str(e)
+            ) from e
+
         asset.id = result.inserted_id
 
         return asset
     
     async def get_asset(self, asset_project_id: str | ObjectId, asset_name: str) -> Asset:
-        query = {
-            "asset_project_id":(
-                ObjectId(asset_project_id)
-                if isinstance(asset_project_id, str)
-                else asset_project_id
-            ),
-            'asset_name' : asset_name
-        }
-        doc = await self.collection.find_one(query)
+        try:
+            doc = await self.collection.find_one(
+                {
+                    'asset_project_id' : self.prepare_id(asset_project_id),
+                    'asset_name' : asset_name
+                }
+            )
+        except PyMongoError as e:
+            raise DatabaseReadError(
+                f"Failed to query asset '{asset_name}'",
+                detail=str(e)
+            ) from e
 
-        return Asset(**doc) if doc is not None else None
+        if doc is None:
+            raise AssetNotFoundError(f"Asset '{asset_name}' not found")
 
-    async def get_all_project_assets(
+        return Asset(**doc)
+
+    async def get_project_assets(
         self, 
         asset_project_id: str | ObjectId, 
         asset_type: str | None = None
     ) -> list[Asset]:
     
         query = {
-            "asset_project_id":(
-                ObjectId(asset_project_id)
-                if isinstance(asset_project_id, str)
-                else asset_project_id
-            )
+            "asset_project_id": self.prepare_id(asset_project_id)
         }
 
         if asset_type is not None:
             query["asset_type"] = asset_type
 
-        docs = await self.collection.find(query).to_list(length=None)
+        try:
+            docs = await self.collection.find(query).to_list(length=None)
+        except PyMongoError as e:
+            raise DatabaseReadError("Failed to fetch project assets", detail=str(e)) from e
         
         return [Asset(**doc) for doc in docs]

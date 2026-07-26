@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from google import genai
-from google.genai import types
-from ...LLMEnums import EmbeddingType
+from google.genai import types, errors as genai_errors
+from ...llm_enums import EmbeddingType
+from exceptions import LLMServiceError
 
 
 class EmbeddingAdapter(ABC):
@@ -18,8 +19,8 @@ class EmbeddingAdapter(ABC):
         self.model_id = model_id
 
     @abstractmethod
-    def embed(self, text: str, document_type: EmbeddingType, 
-                embedding_size: int) -> list[float]:
+    def embed(self, texts: list[str], document_type: EmbeddingType, 
+                embedding_size: int) -> list[list[float]]:
         ...
 
 
@@ -34,17 +35,22 @@ class ConfigBasedAdapter(EmbeddingAdapter):
         EmbeddingType.QUERY:    "QUESTION_ANSWERING",
     }
 
-    def embed(self, text, document_type, embedding_size):
+    def embed(self, texts, document_type, embedding_size):
         task = self._TASK_MAP.get(document_type, "RETRIEVAL_DOCUMENT")
-        res = self.client.models.embed_content(
-            model=self.model_id,
-            contents=text,
-            config=types.EmbedContentConfig(
-                task_type=task,
-                output_dimensionality=embedding_size,
-            ),
-        )
-        return res.embeddings[0].values
+
+        try:
+            response = self.client.models.embed_content(
+                model=self.model_id,
+                contents=texts,
+                config=types.EmbedContentConfig(
+                    task_type=task,
+                    output_dimensionality=embedding_size,
+                ),
+            )
+        except genai_errors.APIError as e:
+            raise LLMServiceError("Google embedding generation failed", detail=str(e)) from e
+    
+        return [embedding.values for embedding in response.embeddings]
 
 
 class InlineTaskAdapter(EmbeddingAdapter):
@@ -55,20 +61,28 @@ class InlineTaskAdapter(EmbeddingAdapter):
     - Documents: f"title: none | text: {text}"
     """
 
-    def embed(self, text, document_type, embedding_size):
+    def embed(self, texts, document_type, embedding_size):
         if document_type == EmbeddingType.QUERY:
-            formatted = f"task: question answering | query: {text}"
+            formatted = [
+                f"task: question answering | query: {text}" for text in texts
+            ]
         else:
-            formatted = f"title: none | text: {text}"
+            formatted = [
+                f"title: none | text: {text}" for text in texts
+            ]
 
-        res = self.client.models.embed_content(
-            model=self.model_id,
-            contents=formatted,
-            config=types.EmbedContentConfig(
-                output_dimensionality=embedding_size,
-            ),
-        )
-        return res.embeddings[0].values
+        try:
+            response = self.client.models.embed_content(
+                model=self.model_id,
+                contents=formatted,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=embedding_size,
+                ),
+            )
+        except genai_errors.APIError as e:
+            raise LLMServiceError("Google embedding generation failed", detail=str(e)) from e
+
+        return [embedding.values for embedding in response.embeddings]
 
 
 def get_embedding_adapter(client: genai.Client, model_id: str) -> EmbeddingAdapter:

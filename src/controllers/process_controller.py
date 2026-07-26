@@ -5,11 +5,15 @@ from typing import Any
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from .BaseController import BaseController
-from .ProjectController import ProjectController
+from .base_controller import BaseController
+from .project_controller import ProjectController
 from models.enums import ProcessingEnums, AssetTypeEnums, ResponseSignal
 from models.schemas import DataChunk, Project, ProcessRequest, Asset
 from models import ChunkModel, AssetModel
+from exceptions import (
+    FileValidationError, FileNotFoundOnDiskError,
+    AssetNotFoundError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +22,14 @@ class ProcessController(BaseController):
         super().__init__()
         self.project = project
         self.project_path = ProjectController().get_project_path(
-            project_id=project.project_id
+            project_name=project.project_name
         )
     
     def get_file_asset_extension(self, asset_name: str) -> str | None:
         return os.path.splitext(asset_name)[-1]
     
     def get_asset_loader(self, asset_name: str):
+        """Return the appropriate file loader. Raises FileValidationError for unsupported types."""
         asset_ext = self.get_file_asset_extension(asset_name)
         asset_path = self.project_path / asset_name
 
@@ -35,8 +40,9 @@ class ProcessController(BaseController):
             loader = PyMuPDFLoader(asset_path)
         
         else:
-            logger.warning(f"Unsupported file extension '{asset_ext}' for asset '{asset_name}'")
-            loader = None
+            raise FileValidationError(
+                f"Unsupported file extension '{asset_ext}' for asset '{asset_name}'"
+            )
 
         return loader
     
@@ -45,27 +51,31 @@ class ProcessController(BaseController):
 
         return loader.load()
     
-    def split_file_content(self, file_content: list,
-                            chunk_size: int, overlap_size: int) -> list:
+    def split_file_content(
+        self, 
+        file_content: list, 
+        chunk_size: int, 
+        overlap_size: int
+    ) -> list:
+    
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_overlap=overlap_size,
+            chunk_size=chunk_size,
+            length_function=len
+        )
 
-                            splitter = RecursiveCharacterTextSplitter(
-                                chunk_overlap=overlap_size,
-                                chunk_size=chunk_size,
-                                length_function=len
-                            )
+        data = [
+            (doc.page_content, doc.metadata)
+            for doc in file_content
+        ]
 
-                            data = [
-                                (doc.page_content, doc.metadata)
-                                for doc in file_content
-                            ]
+        file_texts, file_metadata = tuple(zip(*data))
 
-                            file_texts, file_metadata = tuple(zip(*data))
-
-                            chunks = splitter.create_documents(
-                                texts=file_texts,
-                                metadatas=file_metadata
-                            )
-                            return chunks
+        chunks = splitter.create_documents(
+            texts=file_texts,
+            metadatas=file_metadata
+        )
+        return chunks
 
 
     async def process_tasks(
@@ -84,12 +94,12 @@ class ProcessController(BaseController):
         if process_request.asset_name:
             logger.info(f"processing single file: {process_request.asset_name}")
 
-            asset = await asset_model.get_asset(
-                asset_project_id=self.project.id,
-                asset_name=process_request.asset_name
-            )
-
-            if asset is None:
+            try:
+                asset = await asset_model.get_asset(
+                    asset_project_id=self.project.id,
+                    asset_name=process_request.asset_name
+                )
+            except AssetNotFoundError:
                 logger.error(f"Asset '{process_request.asset_name}' not found in the database.")
                 return {
                     'processed_files': 0,
@@ -101,7 +111,7 @@ class ProcessController(BaseController):
             assets = [asset]
 
         else:
-            logger.info(f"processing all assets of project: {self.project.project_id}")
+            logger.info(f"processing all assets of project: {self.project.project_name}")
             assets = await asset_model.get_all_project_assets(
                 asset_project_id=self.project.id, 
                 asset_type=AssetTypeEnums.FILE
@@ -131,9 +141,9 @@ class ProcessController(BaseController):
             n_chunks, n_files_proc = 0, 0
 
             for asset in assets:
-                is_valid = self.validate_existence(asset)
-                
-                if not is_valid:
+                try:
+                    self.validate_existence(asset)
+                except FileNotFoundOnDiskError:
                     not_found.append(asset.asset_name)
                     continue
                 
@@ -146,9 +156,9 @@ class ProcessController(BaseController):
                         overlap_size=overlap_size
                     )
                 
-                except Exception as e:
+                except (FileValidationError, OSError) as e:
                     logger.error(
-                        f"Unexpected error processing asset '{asset.asset_name}': {e}",
+                        f"Error processing asset '{asset.asset_name}': {e}",
                         exc_info=True
                     )
                     continue
@@ -184,11 +194,9 @@ class ProcessController(BaseController):
 
             return n_chunks, n_files_proc, not_found
 
-    def validate_existence(self, asset: Asset) -> bool:
-        if not self.check_file_exists(self.project.project_id, asset.asset_name):
-            logger.error(
-                f"Error while processing file {asset.asset_name}, "
-                "the file not found on the disk."
+    def validate_existence(self, asset: Asset) -> None:
+        """Raise FileNotFoundOnDiskError if the asset file doesn't exist on disk."""
+        if not self.check_file_exists(self.project.project_name, asset.asset_name):
+            raise FileNotFoundOnDiskError(
+                f"File '{asset.asset_name}' not found on disk for project '{self.project.project_name}'"
             )
-            return False
-        return True

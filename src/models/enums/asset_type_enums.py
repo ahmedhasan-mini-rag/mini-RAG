@@ -1,4 +1,4 @@
 from enum import Enum
 
-class AssetTypeEnums(Enum, str):
+class AssetTypeEnums(str, Enum):
     FILE = 'file'

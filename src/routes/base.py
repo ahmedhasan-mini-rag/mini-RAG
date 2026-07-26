@@ -8,7 +8,15 @@ base_router = APIRouter(
 
 @base_router.get('/')
 async def welcome(settings: Settings = Depends(get_settings)):
+    """Retrieve application metadata.
+
+    Args:
+        settings (Settings, optional): Application settings injected via dependency.
+
+    Returns:
+        dict: Dictionary containing application name and version.
+    """
     return{
-        'app_name' : settings.APP_NAME,
-        'app_version' : settings.APP_VERSION
+        'app_name': settings.APP_NAME,
+        'app_version': settings.APP_VERSION
     }

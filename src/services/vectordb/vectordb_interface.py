@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 
 class VectorDBInterface(ABC):
+
+    @abstractmethod
+    async def disconnect(self):
+        ...
     
     @abstractmethod
-    def create_collection(
+    async def create_collection(
         self, 
         collection_name: str,
         embedding_size: int,
@@ -12,23 +16,23 @@ class VectorDBInterface(ABC):
         ...
     
     @abstractmethod
-    def get_collection_info(self, collection_name: str) -> dict:
+    async def get_collection_info(self, collection_name: str) -> dict:
         ...
 
     @abstractmethod
-    def list_collections(self) -> list[str]:
+    async def list_collections(self) -> list[str]:
         ...
     
     @abstractmethod
-    def delete_collection(self, collection_name: str) -> bool:
+    async def delete_collection(self, collection_name: str) -> bool:
         ...
 
     @abstractmethod
-    def collection_exists(self, collection_name: str) -> bool:
+    async def collection_exists(self, collection_name: str) -> bool:
         ...
     
     @abstractmethod
-    def insert_vector(
+    async def insert_vector(
         self, 
         collection_name: str,
         vector: list[float],
@@ -38,7 +42,7 @@ class VectorDBInterface(ABC):
         ...
     
     @abstractmethod
-    def insert_vectors(
+    async def insert_vectors(
         self, 
         collection_name: str,
         vectors: list[list[float]],
@@ -49,7 +53,7 @@ class VectorDBInterface(ABC):
         ...
 
     @abstractmethod
-    def search_by_vector(
+    async def search_by_vector(
         self, 
         collection_name: str, 
         vector: list[float], 

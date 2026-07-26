@@ -1,16 +1,12 @@
 from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
-import aiofiles
 import logging
-import os
 
 from utils.config import get_settings, Settings
 from controllers import DataController, ProcessController
-from models.enums import ResponseSignal, AssetTypeEnums
-from models.schemas import ProcessRequest, DataChunk, Asset
-from models.ProjectModel import ProjectModel
-from models.ChunkModel import ChunkModel
-from models.AssetModel import AssetModel
+from models.enums import ResponseSignal
+from models.schemas import ProcessRequest
+from models import ChunkModel, AssetModel
 
 data_router = APIRouter(
     prefix='/api/v1/data',
@@ -19,24 +15,32 @@ data_router = APIRouter(
 
 logger = logging.getLogger(__name__)
 
-@data_router.post('/upload/{project_id}')
+@data_router.post('/upload/{project_name}')
 async def upload_file(
     request: Request, 
-    project_id: str, 
+    project_name: str, 
     files: list[UploadFile],
     settings: Settings = Depends(get_settings)
 ) -> JSONResponse:
+    """Upload files to a specified project.
 
-    project_model = await ProjectModel.create_instance(
-        db_client=request.app.state.db_client
-    )
+    Args:
+        request (Request): FastAPI request object containing application context.
+        project_name (str): Name of the target project for file upload.
+        files (list[UploadFile]): List of uploaded files to process and store.
+        settings (Settings, optional): Application settings injected via dependency.
+
+    Returns:
+        JSONResponse: Response indicating upload outcome alongside lists of
+            successful and failed file uploads.
+    """
 
     asset_model = await AssetModel.create_instance(
         db_client=request.app.state.db_client
     )
 
-    project = await project_model.get_project(
-        project_id=project_id,
+    project = await request.app.state.project_model.get_project(
+        project_name=project_name,
         create_if_missing=True
     )
 
@@ -58,36 +62,36 @@ async def upload_file(
         status_code=status_code,
         content={
             'response': final_response,
-            'project_id': project_id,
+            'project_name': project_name,
             'successful_uploads': successful_uploads,
             'failed_uploads': failed_uploads
         }
     )
 
 
-@data_router.post('/process/{project_id}')
+@data_router.post('/process/{project_name}')
 async def process_file(
     request: Request, 
-    project_id: str, 
+    project_name: str, 
     process_request: ProcessRequest
 ) -> JSONResponse:
+    """Process uploaded project assets into searchable text chunks.
 
-    project_model = await ProjectModel.create_instance(
-        db_client=request.app.state.db_client
-    )
+    Args:
+        request (Request): FastAPI request object containing application context.
+        project_name (str): Name of the target project.
+        process_request (ProcessRequest): Parameters controlling chunk size, overlap,
+            and optional chunk reset flag.
 
-    project = await project_model.get_project(
-        project_id=project_id,
+    Returns:
+        JSONResponse: Response containing processing status and breakdown of processed
+            files and generated chunks.
+    """
+
+    project = await request.app.state.project_model.get_project(
+        project_name=project_name,
         create_if_missing=False
     )
-
-    if project is None:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                'response': ResponseSignal.PROJECT_NOT_FOUND
-            }
-        )
 
     chunk_model = await ChunkModel.create_instance(
         db_client=request.app.state.db_client
@@ -98,7 +102,7 @@ async def process_file(
     )
 
     if process_request.do_reset:
-        _ = await chunk_model.delete_multiple_chunks(db_project_id=project.id)
+        _ = await chunk_model.delete_multiple_chunks(chunk_project_id=project.id)
     
     process_controller = ProcessController(project=project)
 

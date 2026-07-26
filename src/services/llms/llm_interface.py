@@ -15,11 +15,11 @@ class LLMInterface(ABC):
         self, 
         prompt: str, 
         chat_history: list = [], 
-        max_output_tokens: int = None,
-        temperature: float = None
-    ):
+        max_output_tokens: int | None = None,
+        temperature: float | None = None
+    ) -> str:
         ...
     
     @abstractmethod
-    def generate_embedding(self, text: str, document_type: str = None):
+    def generate_embedding(self, text: str, document_type: str) -> list[float]:
         ...

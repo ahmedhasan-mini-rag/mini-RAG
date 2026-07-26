@@ -1,6 +1,7 @@
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import logging
-from ..LLMInterface import LLMInterface
+from ..llm_interface import LLMInterface
+from exceptions import LLMServiceError, InvalidConfigError
 
 class OpenAIProvider(LLMInterface):
     def __init__(
@@ -50,20 +51,17 @@ class OpenAIProvider(LLMInterface):
         self, 
         prompt: str, 
         chat_history: list = [], 
-        max_output_tokens: int = None,
-        temperature: float = None
-    ):
-        if not self.client:
-            self.logger.error('Error: the OpenAI client was not set.')
-            return None
-        
+        max_output_tokens: int | None = None,
+        temperature: float | None = None
+    ) -> str:
         if not self.chat_model:
-            self.logger.error('Error: the OpenAI chat model was not set.')
-            return None
+            raise InvalidConfigError("OpenAI chat model not configured")
         
         if len(prompt) > self.default_max_input_chars:
-            self.logger.error(f'Error: the prompt is too long. It should be less than {self.default_max_input_chars} characters.')
-            return None
+            raise InvalidConfigError(
+                f"Prompt too long ({len(prompt)} chars). "
+                f"Max allowed: {self.default_max_input_chars}"
+            )
 
         kwargs = {
             "model": self.chat_model,
@@ -76,37 +74,41 @@ class OpenAIProvider(LLMInterface):
         if self._system_message:
             kwargs["system_instruction"] = self._system_message
         
-        response = self.client.responses.create(**kwargs)
+        try:
+            response = self.client.responses.create(**kwargs)
+        except OpenAIError as e:
+            raise LLMServiceError("OpenAI text generation failed", detail=str(e)) from e
 
         if not response or not response.output_text:
-            self.logger.error('Error: failed to generate text (provider: openai).')
-            return None
+            raise LLMServiceError("OpenAI returned empty response for text generation")
         
         self._previous_interaction_id = response.id
 
         return response.output_text
     
-    def generate_embedding(self, text: str, document_type: str = None):
-        if not self.client:
-            self.logger.error('Error: the OpenAI client was not set.')
-            return None
-        
-        if not self.embedding_model:
-            self.logger.error('Error: the OpenAI embedding model was not set.')
-            return None
+    def generate_embedding(
+        self, 
+        texts: list[str], 
+        document_type: str = ''
+    ) -> list[list[float]]:
 
-        kwargs = {
+        if not self.embedding_model:
+            raise InvalidConfigError("OpenAI embedding model not configured")
+
+        kwargs: dict[str, object] = {
             "model": self.embedding_model,
-            "input": text,
+            "input": texts,
         }
 
         if self.embedding_size:
             kwargs["dimensions"] = self.embedding_size
 
-        response = self.client.embeddings.create(**kwargs)
+        try:
+            response = self.client.embeddings.create(**kwargs)
+        except OpenAIError as e:
+            raise LLMServiceError("OpenAI embedding generation failed", detail=str(e)) from e
 
         if not response or not response.data[0].embedding:
-            self.logger.error('Error: failed to generate embedding (provider: openai).')
-            return None
+            raise LLMServiceError("OpenAI returned empty response for embedding generation")
 
-        return response.data[0].embedding
+        return [item.embedding for item in response.data]
