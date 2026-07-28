@@ -114,7 +114,7 @@ async def search_collection(
     request: Request, 
     project_name: str,
     search_request: SearchRequest,
-):
+) -> JSONResponse:
     """Perform semantic search against a project's vector database collection.
 
     Args:
@@ -125,11 +125,6 @@ async def search_collection(
     Returns:
         JSONResponse: Response containing search response signal and the search results.
     """
-
-    project = await request.app.state.project_model.get_project(
-        project_name=project_name,
-        create_if_missing=False
-    )
 
     nlp_controller = NLPController(
         chat_client=request.app.state.chat_client,
@@ -155,3 +150,31 @@ async def search_collection(
             'search_results': response_result
         }
     )
+
+@nlp_router.post('/answer/{project_name}')
+async def answer_query(
+    request: Request, 
+    project_name: str,
+    search_request: SearchRequest,
+) -> JSONResponse:
+
+    nlp_controller = NLPController(
+        chat_client=request.app.state.chat_client,
+        embedding_client=request.app.state.embedding_client,
+        vectordb_client=request.app.state.vectordb_client
+    )
+
+    answer = await nlp_controller.generate_answer(
+        project_name=project_name,
+        query=search_request.text,
+        n_retrieved_docs=search_request.top_k,
+        response_language=search_request.response_language
+    )
+
+    return JSONResponse(
+        content={
+            'response': ResponseSignal.RAG_ANSWER_SUCCESS,
+            'answer': answer
+        }
+    )
+

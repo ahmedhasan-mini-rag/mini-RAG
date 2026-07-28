@@ -8,9 +8,9 @@ from exceptions import LLMServiceError, InvalidConfigError
 class CohereProvider(LLMInterface):
     def __init__(
         self, api_key: str,
-        default_max_output_tokens: int = 1200,
-        default_max_input_chars: int = 1200,
-        default_temperature: float = 0.5
+        default_max_output_tokens: int,
+        default_max_input_chars: int,
+        default_temperature: float
     ):
 
         self.default_max_output_tokens = default_max_output_tokens
@@ -21,9 +21,27 @@ class CohereProvider(LLMInterface):
         self.embedding_model = None
         self.embedding_size = None
 
+        self._system_message = None
+        self._chat_history = [{}]
+
         self.client = ClientV2(api_key=api_key)
 
         self.logger = logging.getLogger(__name__)
+    
+    @property
+    def system_message(self) -> str | None:
+        return self._system_message
+
+    @system_message.setter
+    def system_message(self, message: str):
+        if message is not None and not isinstance(message, str):
+            self.logger.error("system_message must be a string")
+            return
+
+        self._system_message = message
+        self._chat_history[0] = {
+            'role': Role.SYSTEM, 'content': message
+        }
     
     def set_chat_model(self, model_id: str):
         self.chat_model = model_id
@@ -35,7 +53,6 @@ class CohereProvider(LLMInterface):
     def generate_text(
         self, 
         prompt: str, 
-        chat_history: list = [], 
         max_output_tokens: int | None = None,
         temperature: float | None = None
     ) -> str:
@@ -47,18 +64,13 @@ class CohereProvider(LLMInterface):
                 f"Prompt too long ({len(prompt)} chars). "
                 f"Max allowed: {self.default_max_input_chars}"
             )
-        
-        chat_history.append(
-            {
-                "role": Role.USER,
-                "content": prompt
-            }
-        )
 
+        self._update_chat_history(role = Role.USER, content = prompt)
+        
         try:
             response = self.client.chat(
                 model=self.chat_model,
-                messages=chat_history,
+                messages=self._chat_history,
                 max_tokens=max_output_tokens or self.default_max_output_tokens,
                 temperature=temperature or self.default_temperature,
             )
@@ -68,7 +80,12 @@ class CohereProvider(LLMInterface):
         if not response or not response.message.content[0].text:
             raise LLMServiceError("Cohere returned empty response for text generation")
         
-        return response.message.content[0].text
+        self._update_chat_history(
+            role = Role.ASSISTANT, 
+            content = response.message.content[0].text
+        )
+
+        return self._chat_history[-1]['content']
 
     def generate_embedding(
         self, 
@@ -118,3 +135,11 @@ class CohereProvider(LLMInterface):
             return TASK_MAP[EmbeddingType.DOCUMENT]
 
         return task
+
+    def _update_chat_history(self, role: Role, content: str):
+        self._chat_history.append(
+            {
+                'role': role,
+                'content': content
+            }
+        )

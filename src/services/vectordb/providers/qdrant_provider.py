@@ -1,10 +1,11 @@
+import logging
+from exceptions import VectorDBServiceError
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import PointStruct, Distance
-import logging
 
 from ..vectordb_interface import VectorDBInterface
 from ..vectordb_enums import SimilarityMetric
-from exceptions import VectorDBServiceError
+
 
 class QdrantProvider(VectorDBInterface):
     def __init__(self, dp_path: str, similarity_metric: str):
@@ -182,7 +183,7 @@ class QdrantProvider(VectorDBInterface):
             'euclid': Distance.EUCLID,
         }
 
-        chosen = METRIC_TYPE.get(metric, None)
+        chosen = METRIC_TYPE.get(metric.lower(), None)
         if chosen is None:
             self.logger.warning(
                 f"Invalid similarity metric '{metric}'. "

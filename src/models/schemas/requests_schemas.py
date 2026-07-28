@@ -12,6 +12,7 @@ class EmbedRequest(BaseModel):
 class SearchRequest(BaseModel):
     text: str
     top_k: int = 4
+    response_language: str = "auto"
 
 class RetrievedDocument(BaseModel):
     text: str

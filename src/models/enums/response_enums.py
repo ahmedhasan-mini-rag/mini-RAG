@@ -21,3 +21,6 @@ class ResponseSignal(str, Enum):
 
     VECTORDB_COLLECTION_DELETION_SUCCESS = 'Collection deleted successfully.'
     VECTORDB_COLLECTION_DELETION_FAIL = 'Collection deletion failed.'
+
+    RAG_ANSWER_SUCCESS = 'Answer generated successfully.'
+    RAG_ANSWER_FAIL = 'Failed to generate an answer.'

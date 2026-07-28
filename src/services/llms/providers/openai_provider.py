@@ -6,9 +6,9 @@ from exceptions import LLMServiceError, InvalidConfigError
 class OpenAIProvider(LLMInterface):
     def __init__(
         self, api_key: str, base_url: str,
-        default_max_output_tokens: int = 1200,
-        default_max_input_chars: int = 1200,
-        default_temperature: float = 0.5
+        default_max_output_tokens: int,
+        default_max_input_chars: int,
+        default_temperature: float
     ):
 
         self.default_max_output_tokens = default_max_output_tokens
@@ -19,7 +19,7 @@ class OpenAIProvider(LLMInterface):
         self.embedding_model = None
         self.embedding_size = None
 
-        self._previous_interaction_id = None
+        self._previous_response_id = None
         self._system_message = None
 
         self.client = OpenAI(
@@ -50,7 +50,6 @@ class OpenAIProvider(LLMInterface):
     def generate_text(
         self, 
         prompt: str, 
-        chat_history: list = [], 
         max_output_tokens: int | None = None,
         temperature: float | None = None
     ) -> str:
@@ -66,13 +65,13 @@ class OpenAIProvider(LLMInterface):
         kwargs = {
             "model": self.chat_model,
             "input": prompt,
-            "previous_interaction_id": self._previous_interaction_id,
+            "previous_response_id": self._previous_response_id,
             "temperature": temperature or self.default_temperature,
             "max_output_tokens": max_output_tokens or self.default_max_output_tokens,
         }
 
         if self._system_message:
-            kwargs["system_instruction"] = self._system_message
+            kwargs["instructions"] = self._system_message
         
         try:
             response = self.client.responses.create(**kwargs)

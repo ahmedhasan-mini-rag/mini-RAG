@@ -9,9 +9,9 @@ from exceptions import LLMServiceError, InvalidConfigError
 class GoogleProvider(LLMInterface):
     def __init__(
         self, api_key: str,
-        default_max_output_tokens: int = 1000,
-        default_max_input_chars: int = 1500,
-        default_temperature: float = 0.5
+        default_max_output_tokens: int,
+        default_max_input_chars: int,
+        default_temperature: float
     ):
 
         self.default_max_output_tokens = default_max_output_tokens
@@ -30,14 +30,6 @@ class GoogleProvider(LLMInterface):
 
         self.logger = logging.getLogger(__name__)
     
-    def set_chat_model(self, model_id: str):
-        self.chat_model = model_id
-    
-    def set_embedding_model(self, model_id: str, embedding_size: int):
-        self.embedding_model = model_id
-        self.embedding_size = embedding_size
-        self._embedding_adapter = get_embedding_adapter(self.client, model_id)
-
     @property
     def system_message(self) -> str | None:
         return self._system_message
@@ -49,10 +41,17 @@ class GoogleProvider(LLMInterface):
             return
         self._system_message = message
     
+    def set_chat_model(self, model_id: str):
+        self.chat_model = model_id
+    
+    def set_embedding_model(self, model_id: str, embedding_size: int):
+        self.embedding_model = model_id
+        self.embedding_size = embedding_size
+        self._embedding_adapter = get_embedding_adapter(self.client, model_id)
+    
     def generate_text(
         self, 
         prompt: str, 
-        chat_history: list = [], 
         max_output_tokens: int | None = None,
         temperature: float | None = None
     ) -> str:

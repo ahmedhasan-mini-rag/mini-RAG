@@ -4,6 +4,7 @@ from pymongo.cursor import Cursor
 from services.llms.llm_enums import EmbeddingType
 from .base_controller import BaseController
 from models.schemas import RetrievedDocument
+from services.llms.templates import load_template
 
 class NLPController(BaseController):
     def __init__(self, chat_client, embedding_client, vectordb_client):
@@ -123,3 +124,39 @@ class NLPController(BaseController):
         ]
 
         return retrieved
+
+    async def generate_answer(
+        self, 
+        project_name: str, 
+        query: str, 
+        n_retrieved_docs: int,
+        response_language: str
+    ):
+        docs = await self.search_vectordb_collection(
+            project_name=project_name,
+            text=query,
+            top_k=n_retrieved_docs
+        )
+        rag_template = load_template(template_name='rag')
+
+        self.chat_client.system_message = rag_template.format_system_prompt(
+            response_language=response_language
+        )
+
+        formatted_docs = [
+            rag_template.format_document(
+                doc_num=i,
+                chunk_text=doc.text
+            )
+            for i, doc in enumerate(docs, 1)
+        ]
+        formatted_docs = '\n'.join(formatted_docs)
+
+        footer = rag_template.format_footer(user_query=query)
+
+        full_prompt = f'{formatted_docs}\n\n{footer}'
+
+        return self.chat_client.generate_text(prompt=full_prompt)
+
+
+

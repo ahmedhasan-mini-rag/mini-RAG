@@ -112,7 +112,7 @@ class ProcessController(BaseController):
 
         else:
             logger.info(f"processing all assets of project: {self.project.project_name}")
-            assets = await asset_model.get_all_project_assets(
+            assets = await asset_model.get_project_assets(
                 asset_project_id=self.project.id, 
                 asset_type=AssetTypeEnums.FILE
             )
