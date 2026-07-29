@@ -25,7 +25,7 @@ def _read_toml() -> dict:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / 'src' / '.env',
+        env_file=BASE_DIR / '.env',
         env_ignore_empty=True,
         extra='ignore'
     )

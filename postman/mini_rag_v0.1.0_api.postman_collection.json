@@ -1,0 +1,250 @@
+{
+  "info": {
+    "_postman_id": "31cec419-11eb-4d07-84b7-ab2311c78e65",
+    "name": "mini-rag-v0.1.0-api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "49465023",
+    "_collection_link": "https://go.postman.co/collection/49465023-31cec419-11eb-4d07-84b7-ab2311c78e65?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "data_router",
+      "item": [
+        {
+          "name": "upload_flle",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "uuid": "8e2dd6e4-5bcc-4e5c-9a00-b221670d5cf3",
+                  "src": [
+                    "/home/ahmed-hasan110/Desktop/oppenheimer.txt",
+                    "/home/ahmed-hasan110/Desktop/supernova.txt",
+                    "/home/ahmed-hasan110/Desktop/try.py"
+                  ]
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base}}{{data_router}}/upload/gemini_project",
+              "host": [
+                "{{base}}{{data_router}}"
+              ],
+              "path": [
+                "upload",
+                "gemini_project"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "process_file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{  \n    \"chunk_size\" : 380,\n    \"overlap_size\" : 35,\n    \"do_reset\" : true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base}}{{data_router}}/process/gemini_project",
+              "host": [
+                "{{base}}{{data_router}}"
+              ],
+              "path": [
+                "process",
+                "gemini_project"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "nlp_router",
+      "item": [
+        {
+          "name": "embed_project_chunks",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"do_reset\" : true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base}}{{nlp_router}}/embed/gemini_project",
+              "host": [
+                "{{base}}{{nlp_router}}"
+              ],
+              "path": [
+                "embed",
+                "gemini_project"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "request_collection_info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base}}{{nlp_router}}/info/gemini_project",
+              "host": [
+                "{{base}}{{nlp_router}}"
+              ],
+              "path": [
+                "info",
+                "gemini_project"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "search_given_text_chunk",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"text\" : \"at which galaxy was the first supernova observed? and how many supernovas observed uptill now?\",\n    \"top_k\" : 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base}}{{nlp_router}}/search/gemini_project",
+              "host": [
+                "{{base}}{{nlp_router}}"
+              ],
+              "path": [
+                "search",
+                "gemini_project"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "delete_collection",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base}}{{nlp_router}}/delete/my-proj",
+              "host": [
+                "{{base}}{{nlp_router}}"
+              ],
+              "path": [
+                "delete",
+                "my-proj"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "answer_query",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"text\" : \"\",\n    \"top_k\" : 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base}}{{nlp_router}}/answer/cohere_project",
+              "host": [
+                "{{base}}{{nlp_router}}"
+              ],
+              "path": [
+                "answer",
+                "cohere_project"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "welcom",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base}}",
+          "host": [
+            "{{base}}"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base",
+      "value": ""
+    },
+    {
+      "key": "data_router",
+      "value": ""
+    },
+    {
+      "key": "nlp_router",
+      "value": ""
+    }
+  ]
+}

@@ -133,7 +133,3 @@ async def unhandled_handler(request: Request, exc: Exception):
         status_code=500,
         content={"error": "Internal server error"}
     )
-
-
-if __name__ == "__main__":
-    ...
