@@ -1,7 +1,7 @@
 [project]
 name = "mini-rag"
 version = "0.1.0"
-description = "Add your description here"
+description = "A lightweight, modular FastAPI backend for Retrieval-Augmented Generation (RAG) with multi-LLM support."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
