@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import computed_field
 import tomllib
 import yaml
 import logging
@@ -36,8 +37,11 @@ class Settings(BaseSettings):
     FILE_MAX_SIZE: int
     FILE_CHUNK_SIZE: int
     
-    MONGODB_URL: str
-    MONGODB_DATABASE: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int
+    POSTGRES_HOST: str
 
     CHAT_MODEL_PROVIDER: str
     EMBEDDING_MODEL_PROVIDER: str
@@ -57,6 +61,12 @@ class Settings(BaseSettings):
 
     VECTORDB_PROVIDER: str
     VECTORDB_SIMILARITY_METRIC: str
+
+    @computed_field
+    @property
+    def sqlalchemy_url(self) -> str:
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
 
 def get_settings() -> Settings:
     meta_data = _read_toml()

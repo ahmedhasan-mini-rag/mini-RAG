@@ -1,9 +1,9 @@
 import uuid
-from pymongo.cursor import Cursor
+from collections.abc import AsyncGenerator
 
 from services.llms.llm_enums import EmbeddingType
 from .base_controller import BaseController
-from models.schemas import RetrievedDocument
+from models.schemas import RetrievedDocument, Chunk
 from services.llms.templates import load_template
 
 class NLPController(BaseController):
@@ -21,7 +21,7 @@ class NLPController(BaseController):
     async def embed_and_store_chunks(
             self,
             project_name: str,
-            chunks_iter: Cursor,
+            chunks_iter: AsyncGenerator[Chunk, None],
             do_reset: bool,
             batch_size: int
     ) -> int:
@@ -36,13 +36,14 @@ class NLPController(BaseController):
         }
 
         async for chunk in chunks_iter:
-            chunks_batch['texts'].append(chunk['chunk_text'])
+            chunks_batch['texts'].append(chunk.chunk_text)
             chunks_batch['ids'].append(
-                uuid.uuid5(uuid.NAMESPACE_OID, str(chunk['_id']))
+                uuid.uuid5(uuid.NAMESPACE_OID, str(chunk.id))
             )
 
-            chunk['chunk_metadata']['text'] = chunk['chunk_text']
-            chunks_batch['metadata'].append(chunk['chunk_metadata'])
+            metadata = dict(chunk.chunk_metadata) if chunk.chunk_metadata else {}
+            metadata['text'] = chunk.chunk_text
+            chunks_batch['metadata'].append(metadata)
 
             if len(chunks_batch['ids']) == batch_size:
                 await self._embed_and_store(

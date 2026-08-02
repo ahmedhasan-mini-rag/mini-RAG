@@ -1,25 +1,26 @@
 services:
-  mongodb:
-    image: mongo:noble
-    container_name: mongo
+  pgvector:
+    image: pgvector/pgvector:0.8.6-pg18-trixie
+    container_name: pgvector
 
     restart: always
 
     ports:
-      - "8090:27017"
+      - "5432:5432"
 
     volumes:
-      - mongodb_data:/data/db
-    
+      - pgdata:/var/lib/postgresql
+
     networks:
       - backend
 
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
 
 volumes:
-  mongodb_data:
+  pgdata:
 
 networks:
   backend:

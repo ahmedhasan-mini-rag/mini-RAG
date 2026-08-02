@@ -20,9 +20,8 @@ class EmbeddingAdapter(ABC):
 
     @abstractmethod
     def embed(self, texts: list[str], document_type: EmbeddingType, 
-                embedding_size: int) -> list[list[float]]:
+                embedding_size: int | None) -> list[list[float]]:
         ...
-
 
 class ConfigBasedAdapter(EmbeddingAdapter):
     """For gemini-embedding-001, text-embedding-004/005, etc.

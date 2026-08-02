@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
 from pymongo import AsyncMongoClient
 
 from routes import base, data, nlp
@@ -20,12 +22,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
-    app.state.mongo_client = AsyncMongoClient(settings.MONGODB_URL)
-    app.state.db_client = app.state.mongo_client[settings.MONGODB_DATABASE]
+    engine = create_async_engine(settings.sqlalchemy_url)
+    app.state.db_client = async_sessionmaker(engine, expire_on_commit=False)
 
-    app.state.project_model = await ProjectModel.create_instance(
-        db_client=app.state.db_client
-    )
+    app.state.project_model = ProjectModel(db_client=app.state.db_client)
 
     clients = prepare_clients(settings)
 
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 
     yield 
 
-    await app.state.mongo_client.close()
+    await engine.dispose()
     await app.state.vectordb_client.disconnect()
 
 

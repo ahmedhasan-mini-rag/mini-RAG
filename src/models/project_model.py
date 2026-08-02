@@ -1,8 +1,10 @@
-"""Operations of the 'projects' collection in the database."""
+"""Operations of the 'projects' table in the database."""
 
 from __future__ import annotations
 
-from pymongo.errors import PyMongoError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy import select, func
+from collections.abc import AsyncGenerator
 
 from .custom_base_model import CustomBaseModel
 from .enums import DataBaseEnums
@@ -11,74 +13,58 @@ from exceptions import ProjectNotFoundError, DatabaseReadError, DatabaseWriteErr
 
 
 class ProjectModel(CustomBaseModel):
-    def __init__(self, db_client: object):
+    def __init__(self, db_client):
         super().__init__(db_client)
-        self.collection = db_client[DataBaseEnums.COLLECTION_PROJECT_NAME]
+        self.db_client = db_client
     
-    @classmethod
-    async def create_instance(cls ,db_client: object) -> ProjectModel:
-        obj = cls(db_client=db_client) 
-        await obj.init_indexes()
-
-        return obj
-
-    async def init_indexes(self) -> None:
-        indexes = Project.get_indexes()
-
-        for index in indexes:
-            await self.collection.create_index(
-                keys = index['keys'],
-                name = index['name'],
-                unique = index['unique']
-            )
-
     async def insert_project(self, project: Project) -> Project:
         try:
-            result = await self.collection.insert_one(
-                project.model_dump(exclude_none=True)
-            )
-        except PyMongoError as e:
+            async with self.db_client() as session:
+                async with session.begin():
+                    session.add(project)
+                await session.refresh(project)
+        except IntegrityError as e:
             raise DatabaseWriteError(
-                f"Failed to insert project '{project.project_name}'",
+                f"Project '{project.name}' already exists",
                 detail=str(e)
             ) from e
-
-        project.id = result.inserted_id
-
+        except SQLAlchemyError as e:
+            raise DatabaseWriteError(
+                f"Failed to insert project '{project.name}'",
+                detail=str(e)
+            ) from e
         return project
     
     async def get_project(self, project_name: str, create_if_missing: bool) -> Project:
         try:
-            doc = await self.collection.find_one({
-                'project_name' : project_name
-            })
-        except PyMongoError as e:
-            raise DatabaseReadError(
-                f"Failed to query project '{project_name}'",
-                detail=str(e)
-            ) from e
+            async with self.db_client() as session:
+                async with session.begin():
+                    stmt = select(Project).where(Project.name == project_name)
+                    result = await session.execute(stmt)
+                    project = result.scalar_one_or_none()
 
-        if doc is not None:
-            return Project(**doc)
-        
-        if create_if_missing:
-            project = Project(project_name=project_name)
-            project = await self.insert_project(project=project)
-            return project
-        
-        raise ProjectNotFoundError(f"Project '{project_name}' not found")
+                    if not project:
+                        if create_if_missing :
+                            project = Project(name=project_name)
+                            session.add(project)
+                        
+                        else:
+                            raise ProjectNotFoundError(f"Project '{project_name}' not found")
+
+                await session.refresh(project)
+                return project
+        except SQLAlchemyError as e:
+                    raise DatabaseReadError(
+                        f"Failed to query project '{project_name}'",
+                        detail=str(e)
+                    ) from e
 
 
-    async def get_all_projects(self, page: int = 1, page_size: int = 12) -> tuple[list[Project], int]:
+    async def get_all_projects(self, batch_size: int = 12) -> AsyncGenerator[tuple[Project]]:
         try:
-            total_docs = await self.collection.count_documents({})
-
-            total_pages = (total_docs // page_size) + (total_docs % page_size > 0)
-
-            cursor = self.collection.find().skip((page - 1) * page_size).limit(page_size)
-
-            projects = [Project(**doc) async for doc in cursor]
-        except PyMongoError as e:
+            async with self.db_client() as session:
+                stream = await session.stream_scalars(select(Project))
+                async for batch in stream.partitions(batch_size):
+                    yield batch
+        except SQLAlchemyError as e:
             raise DatabaseReadError("Failed to fetch projects", detail=str(e)) from e
-        
-        return projects, total_pages

@@ -43,18 +43,16 @@ async def embed_project_chunks(
         vectordb_client=request.app.state.vectordb_client
     )
 
-    chunk_model = await ChunkModel.create_instance(
-        db_client=request.app.state.db_client
-    )
+    chunk_model = ChunkModel(db_client=request.app.state.db_client)
 
-    chunks_iter = await chunk_model.get_project_chunks(
+    chunks_iter = chunk_model.get_project_chunks(
         chunk_project_id=project.id
     )
 
     BATCH_SIZE = 50
 
     num_inserted = await nlp_controller.embed_and_store_chunks(
-        project_name=project.project_name,
+        project_name=project.name,
         chunks_iter=chunks_iter,
         do_reset=embed_request.do_reset,
         batch_size=BATCH_SIZE

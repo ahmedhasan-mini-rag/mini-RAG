@@ -35,9 +35,7 @@ async def upload_file(
             successful and failed file uploads.
     """
 
-    asset_model = await AssetModel.create_instance(
-        db_client=request.app.state.db_client
-    )
+    asset_model = AssetModel(db_client=request.app.state.db_client)
 
     project = await request.app.state.project_model.get_project(
         project_name=project_name,
@@ -93,23 +91,21 @@ async def process_file(
         create_if_missing=False
     )
 
-    chunk_model = await ChunkModel.create_instance(
-        db_client=request.app.state.db_client
-    )
+    chunk_model = ChunkModel(db_client=request.app.state.db_client)
+    asset_model = AssetModel(db_client=request.app.state.db_client)
 
-    asset_model = await AssetModel.create_instance(
-        db_client=request.app.state.db_client
-    )
-
+    results = {}
     if process_request.do_reset:
-        _ = await chunk_model.delete_multiple_chunks(chunk_project_id=project.id)
+        results['deleted_chunks'] = await chunk_model.delete_multiple_chunks(chunk_project_id=project.id)
     
     process_controller = ProcessController(project=project)
 
-    results = await process_controller.process_tasks(
-        process_request=process_request,
-        chunk_model=chunk_model,
-        asset_model=asset_model,
+    results.update(
+        await process_controller.process_tasks(
+            process_request=process_request,
+            chunk_model=chunk_model,
+            asset_model=asset_model,
+        )
     )
     
     if results['processed_files'] > 0:

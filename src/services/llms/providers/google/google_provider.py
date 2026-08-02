@@ -44,7 +44,7 @@ class GoogleProvider(LLMInterface):
     def set_chat_model(self, model_id: str):
         self.chat_model = model_id
     
-    def set_embedding_model(self, model_id: str, embedding_size: int):
+    def set_embedding_model(self, model_id: str, embedding_size: int | None):
         self.embedding_model = model_id
         self.embedding_size = embedding_size
         self._embedding_adapter = get_embedding_adapter(self.client, model_id)

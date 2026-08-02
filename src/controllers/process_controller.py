@@ -8,7 +8,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from .base_controller import BaseController
 from .project_controller import ProjectController
 from models.enums import ProcessingEnums, AssetTypeEnums, ResponseSignal
-from models.schemas import DataChunk, Project, ProcessRequest, Asset
+from models.schemas import Chunk, Project, ProcessRequest, Asset
 from models import ChunkModel, AssetModel
 from exceptions import (
     FileValidationError, FileNotFoundOnDiskError,
@@ -22,7 +22,7 @@ class ProcessController(BaseController):
         super().__init__()
         self.project = project
         self.project_path = ProjectController().get_project_path(
-            project_name=project.project_name
+            project_name=project.name
         )
     
     def get_file_asset_extension(self, asset_name: str) -> str | None:
@@ -111,7 +111,7 @@ class ProcessController(BaseController):
             assets = [asset]
 
         else:
-            logger.info(f"processing all assets of project: {self.project.project_name}")
+            logger.info(f"processing all assets of project: {self.project.name}")
             assets = await asset_model.get_project_assets(
                 asset_project_id=self.project.id, 
                 asset_type=AssetTypeEnums.FILE
@@ -171,7 +171,7 @@ class ProcessController(BaseController):
                     continue
 
                 data_chunks = [
-                    DataChunk(
+                    Chunk(
                         chunk_text=chunk.page_content,
                         chunk_metadata=chunk.metadata,
                         chunk_order=i,
@@ -196,7 +196,7 @@ class ProcessController(BaseController):
 
     def validate_existence(self, asset: Asset) -> None:
         """Raise FileNotFoundOnDiskError if the asset file doesn't exist on disk."""
-        if not self.check_file_exists(self.project.project_name, asset.asset_name):
+        if not self.check_file_exists(self.project.name, asset.asset_name):
             raise FileNotFoundOnDiskError(
-                f"File '{asset.asset_name}' not found on disk for project '{self.project.project_name}'"
+                f"File '{asset.asset_name}' not found on disk for project '{self.project.name}'"
             )

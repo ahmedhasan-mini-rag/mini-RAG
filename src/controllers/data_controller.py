@@ -75,7 +75,7 @@ class DataController(BaseController):
             
             file_path, file_name = self.generate_unique_filepath(
                 original_name=file.filename,
-                project_name=self.project.project_name
+                project_name=self.project.name
             )
 
             try:
