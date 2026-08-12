@@ -3,17 +3,18 @@
 from __future__ import annotations
 import uuid
 from collections.abc import AsyncGenerator
+from sqlalchemy import select, func, delete
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .custom_base_model import CustomBaseModel
 from .enums import DataBaseEnums
 from .schemas import Chunk
-from sqlalchemy import select, func, delete
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from exceptions import DatabaseReadError, DatabaseWriteError
 
 
 class ChunkModel(CustomBaseModel):
-    def __init__(self, db_client):
+    def __init__(self, db_client: async_sessionmaker):
         super().__init__(db_client)
         self.collection = db_client
 
@@ -74,7 +75,7 @@ class ChunkModel(CustomBaseModel):
 
         return len(chunks)
     
-    async def delete_multiple_chunks(self, chunk_project_id: uuid.UUID) -> int:
+    async def delete_project_chunks(self, chunk_project_id: uuid.UUID) -> int:
         try:
             async with self.db_client() as session:
                 async with session.begin():
@@ -86,3 +87,18 @@ class ChunkModel(CustomBaseModel):
             raise DatabaseWriteError("Failed to delete chunks", detail=str(e)) from e
 
         return result.rowcount
+    
+    async def count_chunks(self, chunk_project_id: uuid.UUID) -> int:
+        try:
+            async with self.db_client() as session:
+                stmt = select(func.count(Chunk.id)).where(
+                    Chunk.chunk_project_id == chunk_project_id
+                )
+                result = await session.execute(stmt)
+        except SQLAlchemyError as e:
+            raise DatabaseReadError(
+                f"Failed to count chunks for project '{chunk_project_id}'",
+                detail=str(e)
+            ) from e
+
+        return result.scalar_one_or_none()

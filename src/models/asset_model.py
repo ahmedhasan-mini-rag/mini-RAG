@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 import uuid
+from sqlalchemy import select, delete
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .custom_base_model import CustomBaseModel
 from .schemas import Asset
-from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from exceptions import AssetNotFoundError, DatabaseReadError, DatabaseWriteError
 
 
 class AssetModel(CustomBaseModel):
-    def __init__(self, db_client):
+    def __init__(self, db_client: async_sessionmaker):
         super().__init__(db_client)
         self.collection = db_client
     
@@ -77,3 +78,16 @@ class AssetModel(CustomBaseModel):
             raise DatabaseReadError("Failed to fetch project assets", detail=str(e)) from e
 
         return list(assets)
+
+    async def delete_project_assets(self, asset_project_id: uuid.UUID) -> int:
+        try:
+            async with self.db_client() as session:
+                async with session.begin():
+                    stmt = delete(Asset).where(
+                        Asset.asset_project_id == asset_project_id
+                    )
+                    result = await session.execute(stmt)
+        except SQLAlchemyError as e:
+            raise DatabaseWriteError("Failed to delete assets", detail=str(e)) from e
+
+        return result.rowcount

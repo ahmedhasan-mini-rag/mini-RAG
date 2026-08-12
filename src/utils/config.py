@@ -61,6 +61,8 @@ class Settings(BaseSettings):
 
     VECTORDB_PROVIDER: str
     VECTORDB_SIMILARITY_METRIC: str
+    VECTORDB_INDEX_BUILDING_THRESHOLD: int
+    VECTORDB_INDEX_TYPE: str
 
     @computed_field
     @property

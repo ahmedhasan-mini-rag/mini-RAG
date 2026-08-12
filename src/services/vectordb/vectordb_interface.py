@@ -1,9 +1,18 @@
 from abc import ABC, abstractmethod
+import uuid
 
 class VectorDBInterface(ABC):
 
     @abstractmethod
+    async def init_db(self):
+        ...
+
+    @abstractmethod
     async def disconnect(self):
+        ...
+    
+    @abstractmethod
+    async def collection_exists(self, collection_name: str) -> bool:
         ...
     
     @abstractmethod
@@ -26,29 +35,14 @@ class VectorDBInterface(ABC):
     @abstractmethod
     async def delete_collection(self, collection_name: str) -> bool:
         ...
-
-    @abstractmethod
-    async def collection_exists(self, collection_name: str) -> bool:
-        ...
-    
-    @abstractmethod
-    async def insert_vector(
-        self, 
-        collection_name: str,
-        vector: list[float],
-        metadata: dict,
-        vector_id: int | str,
-    ) -> bool:
-        ...
     
     @abstractmethod
     async def insert_vectors(
         self, 
         collection_name: str,
         vectors: list[list[float]],
-        texts: list[str],
         metadata: list[dict],
-        batch_size: int = 100
+        ids: list[uuid.UUID]
     ) -> bool:
         ...
 
@@ -59,4 +53,7 @@ class VectorDBInterface(ABC):
         vector: list[float], 
         top_k: int
     ) -> list[dict]:
+        ...
+
+    def _resolve_similarity_metric(self, metric: str):
         ...

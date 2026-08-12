@@ -1,10 +1,10 @@
-import uuid
-from collections.abc import AsyncGenerator
+from tqdm.auto import tqdm
 
 from services.llms.llm_enums import EmbeddingType
 from .base_controller import BaseController
 from models.schemas import RetrievedDocument, Chunk
 from services.llms.templates import load_template
+from models import ProjectModel
 
 class NLPController(BaseController):
     def __init__(self, chat_client, embedding_client, vectordb_client):
@@ -16,12 +16,13 @@ class NLPController(BaseController):
 
     @classmethod
     def create_collection_name(cls, project_name: str) -> str:
+        ProjectModel.validate_project_name(project_name)
         return f'collection_{project_name}'
 
     async def embed_and_store_chunks(
             self,
             project_name: str,
-            chunks_iter: AsyncGenerator[Chunk, None],
+            chunks: list[Chunk],
             do_reset: bool,
             batch_size: int
     ) -> int:
@@ -30,69 +31,76 @@ class NLPController(BaseController):
             project_name=project_name
         )
 
-        num_inserted = 0
-        chunks_batch = {
-            'texts': [], 'metadata': [], 'ids': []
-        }
-
-        async for chunk in chunks_iter:
-            chunks_batch['texts'].append(chunk.chunk_text)
-            chunks_batch['ids'].append(
-                uuid.uuid5(uuid.NAMESPACE_OID, str(chunk.id))
-            )
-
-            metadata = dict(chunk.chunk_metadata) if chunk.chunk_metadata else {}
-            metadata['text'] = chunk.chunk_text
-            chunks_batch['metadata'].append(metadata)
-
-            if len(chunks_batch['ids']) == batch_size:
-                await self._embed_and_store(
-                    chunks_batch=chunks_batch,
-                    collection_name=collection_name,
-                    reset_collection=do_reset
-                )
-
-                num_inserted += batch_size
-                do_reset = False
-                
-                chunks_batch['ids'].clear()
-                chunks_batch['texts'].clear()
-                chunks_batch['metadata'].clear()
-
-        if chunks_batch:
-            await self._embed_and_store(
-                chunks_batch=chunks_batch,
-                collection_name=collection_name,
-                reset_collection=do_reset
-            )
-
-            num_inserted += len(chunks_batch['ids'])
-
-        return num_inserted
-
-    async def _embed_and_store(
-            self, 
-            chunks_batch: dict[str, list],
-            collection_name: str,
-            reset_collection: bool
-    ):
-        vectors = self.embedding_client.generate_embedding(
-            texts=chunks_batch['texts'],
+        test_vector = self.embedding_client.generate_embedding(
+            texts=[chunks[0].chunk_metadata['text']],
             document_type=EmbeddingType.DOCUMENT
         )
-
         await self.vectordb_client.create_collection(
             collection_name=collection_name,
-            embedding_size=len(vectors[0]),
-            do_reset=reset_collection
+            embedding_size=len(test_vector[0]),
+            do_reset=do_reset
         )
 
         await self.vectordb_client.insert_vectors(
             collection_name=collection_name,
-            vectors=vectors,
-            metadata=chunks_batch['metadata'],
-            ids=chunks_batch['ids']
+            vectors=test_vector,
+            metadata=[chunks[0].chunk_metadata],
+            ids=[chunks[0].id]
         )
+
+        num_inserted = 1
+        texts, metadata, ids = [], [], []
+
+        progress = tqdm(
+            desc=f'Embedding and Storing Chunks for project {project_name}', 
+            total=len(chunks)-1, unit='chunks'
+        )
+
+        for chunk in chunks[1:]:
+            texts.append(chunk.chunk_metadata['text'])
+            ids.append(chunk.id)
+            metadata.append(chunk.chunk_metadata)
+
+            if len(ids) == batch_size:
+                vectors = self.embedding_client.generate_embedding(
+                    texts=texts,
+                    document_type=EmbeddingType.DOCUMENT
+                )
+
+                await self.vectordb_client.insert_vectors(
+                    collection_name=collection_name,
+                    vectors=vectors,
+                    metadata=metadata,
+                    ids=ids,
+                )
+
+                num_inserted += batch_size
+                
+                ids.clear()
+                texts.clear()
+                metadata.clear()
+
+                progress.update(batch_size)
+
+        if ids:
+            vectors = self.embedding_client.generate_embedding(
+                texts=texts,
+                document_type=EmbeddingType.DOCUMENT
+            )
+
+            await self.vectordb_client.insert_vectors(
+                collection_name=collection_name,
+                vectors=vectors,
+                metadata=metadata,
+                ids=ids,
+            )
+
+            num_inserted += len(ids)
+            progress.update(len(ids))
+        
+        progress.close()
+
+        return num_inserted
 
     async def search_vectordb_collection(
         self, 
@@ -116,15 +124,7 @@ class NLPController(BaseController):
             top_k = top_k
         )
 
-        retrieved = [
-            RetrievedDocument(
-                text=result['payload']['text'],
-                score=result['score']
-            )
-            for result in results
-        ]
-
-        return retrieved
+        return results
 
     async def generate_answer(
         self, 

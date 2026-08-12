@@ -1,8 +1,10 @@
 import logging
+import uuid
 from exceptions import VectorDBServiceError
 from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import PointStruct, Distance
 
+from models.schemas import RetrievedDocument
 from ..vectordb_interface import VectorDBInterface
 from ..vectordb_enums import SimilarityMetric
 
@@ -12,8 +14,10 @@ class QdrantProvider(VectorDBInterface):
         self.client = AsyncQdrantClient(path=dp_path)
         
         self.logger = logging.getLogger(__name__)
-
         self.sim_metric = self._resolve_similarity_metric(metric=similarity_metric)
+
+    async def init_db(self):
+        return
 
     async def disconnect(self):
         await self.client.close() 
@@ -90,45 +94,18 @@ class QdrantProvider(VectorDBInterface):
 
         return [c.name for c in collections.collections]
     
-    async def insert_vector(
-        self, 
-        collection_name: str,
-        vector: list[float],
-        metadata: dict,
-        vector_id: int | str
-    ) -> bool:
-
-        if not await self.collection_exists(collection_name):
-            raise VectorDBServiceError(f"Collection '{collection_name}' does not exist")
-        
-        try:
-            await self.client.upsert(
-                collection_name=collection_name,
-                points=[
-                    PointStruct(
-                        id=vector_id,
-                        vector=vector,
-                        payload=metadata
-                    )
-                ]
-            )
-        except Exception as e:
-            raise VectorDBServiceError(
-                f"Failed to insert vector into '{collection_name}'",
-                detail=str(e)
-            ) from e
-
-        return True
-
     async def insert_vectors(
         self, 
         collection_name: str,
         vectors: list[list[float]],
         metadata: list[dict],
-        ids: list[int | str],
+        ids: list[uuid.UUID],
     ) -> bool:
 
-        if len(vectors) != len(metadata) != len(ids):
+        if not await self.collection_exists(collection_name):
+            raise VectorDBServiceError(f"Collection '{collection_name}' does not exist")
+        
+        if not (len(vectors) == len(metadata) == len(ids)):
             raise VectorDBServiceError(
                 "Vectors, metadata, and ids must have the same length"
             )
@@ -137,9 +114,9 @@ class QdrantProvider(VectorDBInterface):
             PointStruct(
                 id=idx,
                 vector=vec,
-                payload=metadata
+                payload=meta
             )
-            for idx, vec, metadata in zip(ids, vectors, metadata)
+            for idx, vec, meta in zip(ids, vectors, metadata)
         ]
 
         try:
@@ -160,7 +137,7 @@ class QdrantProvider(VectorDBInterface):
         collection_name: str, 
         vector: list[float], 
         top_k: int
-    ) -> list[dict]:
+    ) -> list[RetrievedDocument]:
 
         try:
             search_results = await self.client.query_points(
@@ -174,7 +151,13 @@ class QdrantProvider(VectorDBInterface):
                 detail=str(e)
             ) from e
 
-        return [point.model_dump() for point in search_results.points]
+        return [
+            RetrievedDocument(
+                text=point.payload.text,
+                score=point.score
+            ) 
+            for point in search_results.points
+        ]
 
     def _resolve_similarity_metric(self, metric: str) -> Distance:
         METRIC_TYPE = {

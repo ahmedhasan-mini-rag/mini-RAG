@@ -1,6 +1,5 @@
 import os
 import logging
-from pathlib import Path
 from typing import Any
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -111,7 +110,7 @@ class ProcessController(BaseController):
             assets = [asset]
 
         else:
-            logger.info(f"processing all assets of project: {self.project.name}")
+            logger.info(f"processing all assets of project '{self.project.name}'")
             assets = await asset_model.get_project_assets(
                 asset_project_id=self.project.id, 
                 asset_type=AssetTypeEnums.FILE
@@ -149,13 +148,12 @@ class ProcessController(BaseController):
                 
                 try:
                     file_content = self.get_file_content(asset_name=asset.asset_name)
-
                     chunks = self.split_file_content(
                         file_content=file_content,
                         chunk_size=chunk_size, 
                         overlap_size=overlap_size
                     )
-                
+                    
                 except (FileValidationError, OSError) as e:
                     logger.error(
                         f"Error processing asset '{asset.asset_name}': {e}",
@@ -172,8 +170,7 @@ class ProcessController(BaseController):
 
                 data_chunks = [
                     Chunk(
-                        chunk_text=chunk.page_content,
-                        chunk_metadata=chunk.metadata,
+                        chunk_metadata={'text': chunk.page_content} | chunk.metadata,
                         chunk_order=i,
                         chunk_project_id=self.project.id,
                         chunk_asset_id=asset.id

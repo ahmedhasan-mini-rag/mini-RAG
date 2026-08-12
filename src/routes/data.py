@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
 import logging
+import shutil
 
 from utils.config import get_settings, Settings
-from controllers import DataController, ProcessController
+from controllers import DataController, ProcessController, NLPController, ProjectController
 from models.enums import ResponseSignal
 from models.schemas import ProcessRequest
 from models import ChunkModel, AssetModel
+from exceptions import ProjectNotFoundError
 
 data_router = APIRouter(
     prefix='/api/v1/data',
@@ -16,7 +18,7 @@ data_router = APIRouter(
 logger = logging.getLogger(__name__)
 
 @data_router.post('/upload/{project_name}')
-async def upload_file(
+async def upload_files(
     request: Request, 
     project_name: str, 
     files: list[UploadFile],
@@ -68,7 +70,7 @@ async def upload_file(
 
 
 @data_router.post('/process/{project_name}')
-async def process_file(
+async def process_files(
     request: Request, 
     project_name: str, 
     process_request: ProcessRequest
@@ -96,7 +98,7 @@ async def process_file(
 
     results = {}
     if process_request.do_reset:
-        results['deleted_chunks'] = await chunk_model.delete_multiple_chunks(chunk_project_id=project.id)
+        results['deleted_chunks'] = await chunk_model.delete_project_chunks(chunk_project_id=project.id)
     
     process_controller = ProcessController(project=project)
 
@@ -120,5 +122,58 @@ async def process_file(
         content={
             'response' : final_response,
             'processing_details' : results
+        }
+    )
+
+@data_router.delete('/delete/{project_name}')
+async def delete_project(request: Request, project_name: str) -> JSONResponse:
+    """Delete a project and all associated data and its vector database collection.
+
+    Args:
+        request (Request): FastAPI request object containing application context.
+        project_name (str): Name of the project to delete.
+
+    Returns:
+        JSONResponse: Response indicating deletion status.
+    """
+    try:
+        project = await request.app.state.project_model.get_project(
+            project_name=project_name,
+            create_if_missing=False
+        )
+    except ProjectNotFoundError:
+        return JSONResponse(
+            status_code = status.HTTP_404_NOT_FOUND,
+            content={
+                'response': ResponseSignal.PROJECT_NOT_FOUND,
+                'project_name': project_name
+            }
+        )
+
+    chunk_model = ChunkModel(db_client=request.app.state.db_client)
+    asset_model = AssetModel(db_client=request.app.state.db_client)
+
+    await chunk_model.delete_project_chunks(chunk_project_id=project.id)
+    await asset_model.delete_project_assets(asset_project_id=project.id)
+    await request.app.state.project_model.delete_project(project_name=project_name)
+    await request.app.state.vectordb_client.delete_collection(
+        collection_name=NLPController.create_collection_name(project_name)
+    )
+
+    project_storage_path = ProjectController().get_project_path(
+        project_name=project_name, 
+        create_if_missing=False
+    )
+
+    if project_storage_path.exists():
+        shutil.rmtree(project_storage_path)
+
+    logger.info(f"Project '{project_name}' was wiped out successfully.")
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            'response': ResponseSignal.PROJECT_DELETED,
+            'project_name': project_name
         }
     )

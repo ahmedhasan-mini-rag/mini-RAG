@@ -8,7 +8,8 @@ class ResponseSignal(str, Enum):
     FILE_UPLOAD_FAIL = 'File(s) upload failed'
     FILE_NOT_FOUND = 'The requested file(s) not found. Ensure it is uploaded first.'
 
-    PROJECT_NOT_FOUND = 'Project not found, no project with the given id.'
+    PROJECT_NOT_FOUND = 'Project not found, no project with the given id/name.'
+    PROJECT_DELETED = 'Project deleted successfully.'
 
     PROCESSING_SUCCESS = 'File(s) processing succeeded'
     PROCESSING_FAIL = 'File(s) processing failed'

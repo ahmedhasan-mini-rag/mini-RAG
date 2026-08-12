@@ -45,15 +45,18 @@ async def embed_project_chunks(
 
     chunk_model = ChunkModel(db_client=request.app.state.db_client)
 
-    chunks_iter = chunk_model.get_project_chunks(
-        chunk_project_id=project.id
-    )
+    # Materialize all chunks upfront so the streaming DB session is released
+    # before any vectordb operations that need connections from the same pool.
+    chunks = [
+        chunk async for chunk 
+        in chunk_model.get_project_chunks(chunk_project_id=project.id)
+    ]
 
     BATCH_SIZE = 50
 
     num_inserted = await nlp_controller.embed_and_store_chunks(
-        project_name=project.name,
-        chunks_iter=chunks_iter,
+        project_name=project_name,
+        chunks=chunks,
         do_reset=embed_request.do_reset,
         batch_size=BATCH_SIZE
     )
@@ -77,7 +80,7 @@ async def delete_project_collection(request: Request, project_name: str) -> JSON
     Returns:
         JSONResponse: Response containing vector DB deletion signal and status.
     """
-
+    
     collection_name = NLPController.create_collection_name(project_name=project_name)
     await request.app.state.vectordb_client.delete_collection(collection_name=collection_name)
 

@@ -4,8 +4,6 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from pymongo import AsyncMongoClient
-
 from routes import base, data, nlp
 from utils.config import Settings, get_settings, setup_logging
 from services.llms import LLMProviderFactory
@@ -27,11 +25,21 @@ async def lifespan(app: FastAPI):
 
     app.state.project_model = ProjectModel(db_client=app.state.db_client)
 
-    clients = prepare_clients(settings)
+    clients = prepare_ai_clients(settings)
 
     app.state.chat_client = clients['chat_client']
     app.state.embedding_client = clients['embedding_client']
-    app.state.vectordb_client = clients['vectordb_client']
+
+    vectordb_client_factory = VectorDBProviderFactory(
+        pg_client=app.state.db_client,
+        config=settings
+    )
+
+    vectordb_client = vectordb_client_factory.create(
+        provider=settings.VECTORDB_PROVIDER
+    )
+    await vectordb_client.init_db()
+    app.state.vectordb_client = vectordb_client
 
     yield 
 
@@ -39,7 +47,7 @@ async def lifespan(app: FastAPI):
     await app.state.vectordb_client.disconnect()
 
 
-def prepare_clients(settings: Settings) -> dict:
+def prepare_ai_clients(settings: Settings) -> dict:
     llm_client_factory = LLMProviderFactory(config=settings)
 
     chat_client = llm_client_factory.create(
@@ -65,18 +73,9 @@ def prepare_clients(settings: Settings) -> dict:
             embedding_size=settings.EMBEDDING_SIZE
         )
 
-    vectordb_client_factory = VectorDBProviderFactory(
-        similarity_metric=settings.VECTORDB_SIMILARITY_METRIC
-    )
-
-    vectordb_client = vectordb_client_factory.create(
-        provider=settings.VECTORDB_PROVIDER
-    )
-
     return {
         'chat_client': chat_client,
         'embedding_client': embedding_client,
-        'vectordb_client': vectordb_client
     }
 
 setup_logging()

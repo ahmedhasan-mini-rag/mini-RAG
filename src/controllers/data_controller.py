@@ -11,7 +11,7 @@ from models.enums import ResponseSignal, AssetTypeEnums
 from models.schemas import Project, Asset
 from models import AssetModel
 from exceptions import (
-    FileValidationError, FileIOError as AppFileIOError,
+    FileValidationError,
     DatabaseWriteError,
 )
 

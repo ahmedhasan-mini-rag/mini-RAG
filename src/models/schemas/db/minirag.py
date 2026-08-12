@@ -46,7 +46,7 @@ class Asset(Base):
         server_default=func.now()
     )
     asset_type: Mapped[str] = mapped_column()
-    asset_name: Mapped[str] = mapped_column(String(25))
+    asset_name: Mapped[str] = mapped_column()
     asset_size: Mapped[int] = mapped_column()
     asset_config: Mapped[dict | None] = mapped_column(JSONB)
 
@@ -69,12 +69,12 @@ class Chunk(Base):
         default=uuid.uuid4
     )
 
-    chunk_text: Mapped[str] = mapped_column()
     chunk_order: Mapped[int] = mapped_column()
-    chunk_metadata: Mapped[dict | None] = mapped_column(JSONB)
+    chunk_metadata: Mapped[dict] = mapped_column(JSONB)
 
     chunk_project_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("projects.id"), index=True)
     chunk_asset_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("assets.id"), index=True)
 
     project: Mapped["Project"] = relationship(back_populates="chunks")
     asset: Mapped["Asset"] = relationship(back_populates="chunks")
+    
