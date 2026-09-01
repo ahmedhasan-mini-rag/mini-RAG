@@ -3,6 +3,7 @@ import aiofiles
 import re
 import os
 import logging
+import mimetypes
 from pathlib import Path
 
 from .base_controller import BaseController
@@ -26,7 +27,14 @@ class DataController(BaseController):
     def validate_uploaded_file(self, file: UploadFile) -> None:
         """Validate file type and size. Raises FileValidationError on failure."""
         
-        if file.content_type not in self.app_settings.FILE_ALLOWED_TYPES:
+        content_type = file.content_type
+        if (not content_type or content_type == "application/octet-stream") and file.filename:
+            guessed_type, _ = mimetypes.guess_type(file.filename)
+            if guessed_type:
+                content_type = guessed_type
+
+        if content_type not in self.app_settings.FILE_ALLOWED_TYPES:
+            logger.warning(f"Unsupported file type: {content_type} (filename: {file.filename})")
             raise FileValidationError(ResponseSignal.FILE_TYPE_NOT_SUPPORTED)
             
         if file.size > self.app_settings.FILE_MAX_SIZE * self.file_size_scaler:
@@ -83,7 +91,7 @@ class DataController(BaseController):
                     while chunk := await file.read(self.app_settings.FILE_CHUNK_SIZE):
                         await f.write(chunk)
             
-            except OSError as e:
+            except Exception as e:
                 logger.error(f'Error while uploading file {file.filename}: {e}')
                 failed_uploads.append({
                     'filename': file.filename,

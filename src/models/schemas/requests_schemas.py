@@ -17,3 +17,5 @@ class SearchRequest(BaseModel):
 class RetrievedDocument(BaseModel):
     text: str
     score: float
+    table_md: str | None 
+    img_url: str | None 

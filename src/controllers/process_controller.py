@@ -1,17 +1,21 @@
 import os
 import logging
+import time
 from typing import Any
-from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .base_controller import BaseController
 from .project_controller import ProjectController
-from models.enums import ProcessingEnums, AssetTypeEnums, ResponseSignal
+from models.enums import AssetTypeEnums, ResponseSignal
 from models.schemas import Chunk, Project, ProcessRequest, Asset
 from models import ChunkModel, AssetModel
+from ingestion.loaders import load_file
+from ingestion.chunkers.recursive_chunking import chunk_recursively
+from ingestion.loaders.schemas import LoadedDocument
+from ingestion.loaders.schemas import ProcessingOutputType
 from exceptions import (
     FileValidationError, FileNotFoundOnDiskError,
-    AssetNotFoundError,
+    AssetNotFoundError, FileIOError,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,58 +28,10 @@ class ProcessController(BaseController):
             project_name=project.name
         )
     
-    def get_file_asset_extension(self, asset_name: str) -> str | None:
-        return os.path.splitext(asset_name)[-1]
-    
-    def get_asset_loader(self, asset_name: str):
-        """Return the appropriate file loader. Raises FileValidationError for unsupported types."""
-        asset_ext = self.get_file_asset_extension(asset_name)
+    async def get_file_content(self, asset_name: str) -> list[LoadedDocument]:
+        """Extract content from an asset file using the loader pipeline."""
         asset_path = self.project_path / asset_name
-
-        if asset_ext == ProcessingEnums.TXT:
-            loader = TextLoader(asset_path, encoding='utf-8')
-
-        elif asset_ext == ProcessingEnums.PDF:
-            loader = PyMuPDFLoader(asset_path)
-        
-        else:
-            raise FileValidationError(
-                f"Unsupported file extension '{asset_ext}' for asset '{asset_name}'"
-            )
-
-        return loader
-    
-    def get_file_content(self, asset_name: str) -> list:
-        loader = self.get_asset_loader(asset_name=asset_name)
-
-        return loader.load()
-    
-    def split_file_content(
-        self, 
-        file_content: list, 
-        chunk_size: int, 
-        overlap_size: int
-    ) -> list:
-    
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_overlap=overlap_size,
-            chunk_size=chunk_size,
-            length_function=len
-        )
-
-        data = [
-            (doc.page_content, doc.metadata)
-            for doc in file_content
-        ]
-
-        file_texts, file_metadata = tuple(zip(*data))
-
-        chunks = splitter.create_documents(
-            texts=file_texts,
-            metadatas=file_metadata
-        )
-        return chunks
-
+        return await load_file(asset_path)
 
     async def process_tasks(
         self, 
@@ -83,7 +39,8 @@ class ProcessController(BaseController):
         chunk_model: ChunkModel,
         asset_model: AssetModel,
     ) -> dict[str, Any]:
-    
+
+        gs = time.perf_counter()
         kwargs = {
             'chunk_size': process_request.chunk_size,
             'overlap_size': process_request.overlap_size,
@@ -120,6 +77,8 @@ class ProcessController(BaseController):
             assets=assets, **kwargs
         )
 
+        ge = time.perf_counter()
+        print(f'total time: {ge-gs}')
         return {
             'processed_files': n_files_proc,
             'inserted_chunks': n_chunks,
@@ -147,38 +106,56 @@ class ProcessController(BaseController):
                     continue
                 
                 try:
-                    file_content = self.get_file_content(asset_name=asset.asset_name)
-                    chunks = self.split_file_content(
-                        file_content=file_content,
+                    file_content = await self.get_file_content(asset_name=asset.asset_name)
+                    ext = os.path.splitext(asset.asset_name)
+
+                    # process text docs
+                    text_docs = [
+                        doc for doc in file_content
+                        if doc.metadata.doc_type == ProcessingOutputType.TEXT
+                    ]
+                    text_chunks = chunk_recursively(
+                        docs=text_docs,
                         chunk_size=chunk_size, 
-                        overlap_size=overlap_size
+                        overlap_size=overlap_size,
+                        split_on_atx_first=(ext == '.pdf')
                     )
                     
-                except (FileValidationError, OSError) as e:
+                except (FileValidationError, FileIOError, OSError) as e:
                     logger.error(
                         f"Error processing asset '{asset.asset_name}': {e}",
                         exc_info=True
                     )
                     continue
 
-                if not chunks:
+                if not text_chunks:
                     logger.error(
                         f"Error while processing the asset: {asset.asset_name}, " 
                         f"{ResponseSignal.PROCESSING_FAIL}"
                     )
                     continue
 
-                data_chunks = [
+                chunks = [
                     Chunk(
                         chunk_metadata={'text': chunk.page_content} | chunk.metadata,
-                        chunk_order=i,
                         chunk_project_id=self.project.id,
                         chunk_asset_id=asset.id
                     )
-                    for i, chunk in enumerate(chunks, 1)
+                    for chunk in text_chunks
                 ]
 
-                all_chunks.extend(data_chunks)
+                # add non-text docs
+                chunks.extend([
+                    Chunk(
+                        chunk_metadata={'text': doc.text} | doc.metadata.model_dump(exclude_none=True),
+                        chunk_project_id=self.project.id,
+                        chunk_asset_id=asset.id
+                    )
+                    for doc in file_content
+                    if doc.metadata.doc_type != ProcessingOutputType.TEXT
+                ])
+
+                all_chunks.extend(chunks)
                 n_files_proc += 1
 
             if all_chunks:

@@ -70,7 +70,7 @@ async def upload_files(
 
 
 @data_router.post('/process/{project_name}')
-async def process_files(
+async def process_project_data(
     request: Request, 
     project_name: str, 
     process_request: ProcessRequest

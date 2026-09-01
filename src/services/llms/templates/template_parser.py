@@ -29,9 +29,19 @@ class RAGTemplate:
         )
         return self.system_prompt.format(response_language=language)
 
-    def format_document(self, doc_num: int, chunk_text: str) -> str:
+    def format_document(
+            self, 
+            doc_num: int, chunk_text: str, 
+            table_md: str | None, 
+            img_url: str | None
+    ) -> str:
         """Render a single retrieved document block."""
-        return self.document_prompt.format(doc_num=doc_num, chunk_text=chunk_text)
+        text = self.document_prompt.format(doc_num=doc_num, chunk_text=chunk_text)
+        if table_md:
+            text = text + "\n\n" + f"table:\n{table_md}"
+        elif img_url:
+            text = text + "\n\n" + f"public image URL: {img_url}"
+        return text
 
     def format_footer(self, user_query: str) -> str:
         """Render the closing footer that contains the user's question."""

@@ -1,0 +1,6 @@
+This is a sample plain text file for testing.
+
+It contains multiple lines of text.
+The loader should read all of this content.
+
+Arabic text: مرحبا بالعالم

@@ -64,10 +64,35 @@ class Settings(BaseSettings):
     VECTORDB_INDEX_BUILDING_THRESHOLD: int
     VECTORDB_INDEX_TYPE: str
 
+    SCANNED_PAGE_TEXT_MAX_LIMIT: int
+    SCANNED_PAGE_MIN_RATIO_LIMIT: float
+    CONVERSION_DPI: int = 150
+    OCR_MODEL_ID: str
+    OCR_MODEL_URL: str
+    OCR_MODEL_API_KEY: str
+    MAX_CONCURRENT_VLM_CALLS: int = 3
+
+    R2_BUCKET_NAME: str
+    R2_ACCOUNT_ID: str
+    R2_PUBLIC_URL: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+
     @computed_field
     @property
     def sqlalchemy_url(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    
+    @computed_field
+    @property
+    def r2_bucket_config(self) -> dict:
+        return {
+            'bucket_name': self.R2_BUCKET_NAME,
+            'account_id': self.R2_ACCOUNT_ID,
+            'r2_public_url': self.R2_PUBLIC_URL,
+            'access_key_id': self.R2_ACCESS_KEY_ID,
+            'secret_access_key': self.R2_SECRET_ACCESS_KEY
+        }
 
 
 def get_settings() -> Settings:

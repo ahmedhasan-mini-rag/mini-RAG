@@ -225,7 +225,10 @@ class PGVectorProvider(VectorDBInterface):
             async with self.client() as session:
                 stmt = text(
                     f'''
-                    SELECT metadata->>'text' AS text, vector {self.sim_metric_info.symbol} :ref_vector AS score
+                    SELECT metadata->>'text' AS text, 
+                    metadata->>'table_md' AS table_md,
+                    metadata->>'img_url' AS img_url,
+                    vector {self.sim_metric_info.symbol} :ref_vector AS score
                     FROM {collection_name}
                     ORDER BY score
                     LIMIT :top_k
@@ -249,7 +252,9 @@ class PGVectorProvider(VectorDBInterface):
         return [
             RetrievedDocument(
                 text=result.text,
-                score=self.sim_metric_info.norm_method(result.score)
+                score=self.sim_metric_info.norm_method(result.score),
+                table_md=result.table_md,
+                img_url=result.img_url
             )
             for result in results
         ]

@@ -132,7 +132,7 @@ class NLPController(BaseController):
         query: str, 
         n_retrieved_docs: int,
         response_language: str
-    ):
+    ) -> str:
         docs = await self.search_vectordb_collection(
             project_name=project_name,
             text=query,
@@ -147,12 +147,14 @@ class NLPController(BaseController):
         formatted_docs = [
             rag_template.format_document(
                 doc_num=i,
-                chunk_text=doc.text
+                chunk_text=doc.text,
+                table_md=doc.table_md,
+                img_url=doc.img_url
             )
             for i, doc in enumerate(docs, 1)
         ]
-        formatted_docs = '\n'.join(formatted_docs)
 
+        formatted_docs = '\n'.join(formatted_docs)
         footer = rag_template.format_footer(user_query=query)
 
         full_prompt = f'{formatted_docs}\n\n{footer}'

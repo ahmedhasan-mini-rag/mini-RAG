@@ -69,7 +69,6 @@ class Chunk(Base):
         default=uuid.uuid4
     )
 
-    chunk_order: Mapped[int] = mapped_column()
     chunk_metadata: Mapped[dict] = mapped_column(JSONB)
 
     chunk_project_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("projects.id"), index=True)
