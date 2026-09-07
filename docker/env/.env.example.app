@@ -8,7 +8,7 @@ POSTGRES_USER=
 POSTGRES_PASSWORD=
 POSTGRES_DB="mini-rag"
 POSTGRES_PORT=5432
-POSTGRES_HOST="localhost"
+POSTGRES_HOST="pgvector"
 
 # llms settings
 

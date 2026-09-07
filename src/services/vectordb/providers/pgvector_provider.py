@@ -5,7 +5,7 @@ from collections.abc import Callable
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from pgvector.sqlalchemy import Vector
 
 from models.schemas import RetrievedDocument
@@ -42,6 +42,10 @@ class PGVectorProvider(VectorDBInterface):
                     await session.execute(
                         text("CREATE EXTENSION IF NOT EXISTS vector;")
                     )
+        except IntegrityError:
+            # asyncpg raises IntegrityError even with IF NOT EXISTS
+            # when the vector extension is already installed — safe to ignore.
+            self.logger.debug("pgvector extension already exists, skipping creation.")
         except SQLAlchemyError as e:
             raise VectorDBServiceError(
                 "Failed to initialize database",

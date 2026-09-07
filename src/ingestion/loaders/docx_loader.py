@@ -15,11 +15,12 @@ import logging
 from pathlib import Path
 
 from docx import Document as DocxDocument
+from docx.document import Document as DocxDocumentType
 from docx.opc.exceptions import PackageNotFoundError
 
 from exceptions import FileIOError
 from .base import BaseLoader, register_loader
-from .schemas import LoadedDocument
+from .schemas import LoadedDocument, DocumentMetaData, ProcessingOutputType
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +57,17 @@ class DocxLoader(BaseLoader):
         return [
             LoadedDocument(
                 text=full_text,
-                metadata={
-                    "source": str(file_path),
-                    "format": ".docx",
-                },
+                metadata=DocumentMetaData(
+                    doc_type=ProcessingOutputType.TEXT,
+                    source=str(file_path),
+                    format=".docx"
+                )
             )
         ]
 
     def _split_by_headings(
         self,
-        doc: DocxDocument,
+        doc: DocxDocumentType,
         file_path: Path,
     ) -> list[LoadedDocument]:
         """Return one LoadedDocument per heading section, or an empty
@@ -88,17 +90,18 @@ class DocxLoader(BaseLoader):
             documents.append(
                 LoadedDocument(
                     text=section_text,
-                    metadata={
-                        "source": str(file_path),
-                        "format": ".docx",
-                        "section": current_heading,
-                        "section_level": current_level,
-                    },
+                    metadata=DocumentMetaData(
+                        doc_type=ProcessingOutputType.TEXT,
+                        source=str(file_path),
+                        format=".docx",
+                        section=current_heading,
+                        section_level=current_level
+                    )
                 )
             )
 
         for para in doc.paragraphs:
-            style_name = (para.style.name or "").lower()
+            style_name = (para.style.name or "").lower() # type: ignore
 
             if style_name.startswith("heading "):
                 has_headings = True

@@ -1,8 +1,8 @@
-"""first scheme
+"""first revision
 
-Revision ID: 90fee0949881
+Revision ID: adb6d7f190b3
 Revises: 
-Create Date: 2026-08-11 05:54:42.858699
+Create Date: 2026-09-07 11:52:13.184499
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '90fee0949881'
+revision: str = 'adb6d7f190b3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,9 +43,7 @@ def upgrade() -> None:
     op.create_index('ix_asset_project_id_asset_name', 'assets', ['asset_project_id', 'asset_name'], unique=True)
     op.create_table('chunks',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('chunk_text', sa.String(), nullable=False),
-    sa.Column('chunk_order', sa.Integer(), nullable=False),
-    sa.Column('chunk_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('chunk_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('chunk_project_id', sa.UUID(), nullable=False),
     sa.Column('chunk_asset_id', sa.UUID(), nullable=False),
     sa.ForeignKeyConstraint(['chunk_asset_id'], ['assets.id'], ),

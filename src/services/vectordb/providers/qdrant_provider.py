@@ -153,8 +153,10 @@ class QdrantProvider(VectorDBInterface):
 
         return [
             RetrievedDocument(
-                text=point.payload.text,
-                score=point.score
+                text=point.payload.text,            # type: ignore
+                score=point.score,
+                table_md=point.payload.table_md,    # type: ignore
+                img_url=point.payload.img_url       # type: ignore
             ) 
             for point in search_results.points
         ]

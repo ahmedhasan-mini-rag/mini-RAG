@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from routes import base, data, nlp
 from utils.config import Settings, get_settings, setup_logging
+from utils.metrics import setup_metrics
 from services.llms import LLMProviderFactory
 from services.vectordb import VectorDBProviderFactory
 from models import ProjectModel
@@ -15,11 +16,10 @@ from exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
-
     engine = create_async_engine(settings.sqlalchemy_url)
     app.state.db_client = async_sessionmaker(engine, expire_on_commit=False)
 
@@ -81,6 +81,8 @@ def prepare_ai_clients(settings: Settings) -> dict:
 setup_logging()
 
 app = FastAPI(lifespan=lifespan)
+
+setup_metrics(app=app, app_name=settings.APP_NAME)
 
 app.include_router(base.base_router)
 app.include_router(data.data_router)

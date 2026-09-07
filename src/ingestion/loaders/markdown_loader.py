@@ -16,7 +16,7 @@ from pathlib import Path
 
 from exceptions import FileIOError
 from .base import BaseLoader, register_loader
-from .schemas import LoadedDocument
+from .schemas import LoadedDocument, DocumentMetaData, ProcessingOutputType
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +59,11 @@ class MarkdownLoader(BaseLoader):
         return [
             LoadedDocument(
                 text=text,
-                metadata={
-                    "source": str(file_path),
-                    "format": ".md",
-                },
+                metadata=DocumentMetaData(
+                    doc_type=ProcessingOutputType.TEXT,
+                    source=str(file_path),
+                    format=".md"
+                )
             )
         ]
 
@@ -84,10 +85,11 @@ class MarkdownLoader(BaseLoader):
             documents.append(
                 LoadedDocument(
                     text=preamble,
-                    metadata={
-                        "source": str(file_path),
-                        "format": ".md",
-                    },
+                    metadata=DocumentMetaData(
+                        doc_type=ProcessingOutputType.TEXT,
+                        source=str(file_path),
+                        format=".md"
+                    )
                 )
             )
 
@@ -106,12 +108,13 @@ class MarkdownLoader(BaseLoader):
             documents.append(
                 LoadedDocument(
                     text=section_text,
-                    metadata={
-                        "source": str(file_path),
-                        "format": ".md",
-                        "section": heading,
-                        "section_level": level,
-                    },
+                    metadata=DocumentMetaData(
+                        doc_type=ProcessingOutputType.TEXT,
+                        source=str(file_path),
+                        format=".md",
+                        section=heading,
+                        section_level=level
+                    )
                 )
             )
 

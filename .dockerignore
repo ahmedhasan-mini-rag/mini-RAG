@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.vscode
+.env
+test.py
+tests
+postman
+notes.txt
+logs
+assets

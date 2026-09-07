@@ -151,7 +151,7 @@ activemq-data/
 .env
 .envrc
 .venv
-env/
+# env/
 venv/
 ENV/
 env.bak/
@@ -223,3 +223,5 @@ notes.txt
 **/databases/
 mongodb/
 logs/
+.env.*
+!.env.example*

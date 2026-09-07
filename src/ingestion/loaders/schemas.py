@@ -13,6 +13,8 @@ class DocumentMetaData(BaseModel):
     format: str | None = None
     page: int | None = 0
     total_pages: int | None = None
+    section: str | None = None
+    section_level: int | None = None
     img_url: str | None = None
     table_md: str | None = None
 

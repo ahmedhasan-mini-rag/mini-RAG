@@ -15,7 +15,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from exceptions import FileIOError
 from .base import BaseLoader, register_loader
-from .schemas import LoadedDocument
+from .schemas import LoadedDocument, DocumentMetaData, ProcessingOutputType
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +70,11 @@ class HtmlLoader(BaseLoader):
         return [
             LoadedDocument(
                 text=text,
-                metadata={
-                    "source": str(file_path),
-                    "format": ".html",
-                },
+                metadata=DocumentMetaData(
+                    doc_type=ProcessingOutputType.TEXT,
+                    source=str(file_path),
+                    format=".html"
+                )
             )
         ]
 
@@ -99,12 +100,13 @@ class HtmlLoader(BaseLoader):
             documents.append(
                 LoadedDocument(
                     text=section_text,
-                    metadata={
-                        "source": str(file_path),
-                        "format": ".html",
-                        "section": current_heading,
-                        "section_level": current_level,
-                    },
+                    metadata=DocumentMetaData(
+                        doc_type=ProcessingOutputType.TEXT,
+                        source=str(file_path),
+                        format=".html",
+                        section=current_heading,
+                        section_level=current_level
+                    )
                 )
             )
 

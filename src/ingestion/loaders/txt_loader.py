@@ -12,7 +12,7 @@ from pathlib import Path
 
 from exceptions import FileIOError
 from .base import BaseLoader, register_loader
-from .schemas import LoadedDocument
+from .schemas import LoadedDocument, DocumentMetaData, ProcessingOutputType
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +48,11 @@ class TxtLoader(BaseLoader):
         return [
             LoadedDocument(
                 text=text,
-                metadata={
-                    "source": str(file_path),
-                    "format": ".txt",
-                },
+                metadata=DocumentMetaData(
+                    doc_type=ProcessingOutputType.TEXT,
+                    source=str(file_path),
+                    format=".txt"
+                )
             )
         ]
 
