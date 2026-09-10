@@ -69,6 +69,14 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "wipe_out_project",
+          "request": {
+            "method": "GET",
+            "header": []
+          },
+          "response": []
         }
       ]
     },

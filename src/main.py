@@ -56,6 +56,7 @@ def prepare_ai_clients(settings: Settings) -> dict:
     chat_client.set_chat_model(model_id=settings.CHAT_MODEL_ID)
 
     # set the system message (optional)
+    # chat_client.system_message = "You are a helpful assistant"
 
     if settings.CHAT_MODEL_PROVIDER == settings.EMBEDDING_MODEL_PROVIDER:
         embedding_client = chat_client

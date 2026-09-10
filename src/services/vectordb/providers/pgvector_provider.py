@@ -43,8 +43,6 @@ class PGVectorProvider(VectorDBInterface):
                         text("CREATE EXTENSION IF NOT EXISTS vector;")
                     )
         except IntegrityError:
-            # asyncpg raises IntegrityError even with IF NOT EXISTS
-            # when the vector extension is already installed — safe to ignore.
             self.logger.debug("pgvector extension already exists, skipping creation.")
         except SQLAlchemyError as e:
             raise VectorDBServiceError(

@@ -130,19 +130,21 @@ Prometheus is configured to scrape these metrics automatically.
 
 ### Visualizing Metrics in Grafana
 
-1. Log into Grafana at http://localhost:3000 (default credentials: admin/admin_password)
-2. Add Prometheus as a data source (URL: http://prometheus:9090)
-3. Import dashboards for FastAPI, PostgreSQL, and Qdrant
+All dashboards and the Prometheus data source are **auto-provisioned** on startup. Simply log into Grafana at http://localhost:3000 and the following dashboards will be available:
 
-#### Dashboards URLs
+- **FastAPI Observability** — Request counts, latencies, error rates
+- **Node Exporter Full** — System-level CPU, memory, disk, and network metrics
+- **Qdrant Observatory** — Vector database health and search performance
+- **PostgreSQL Database** — Database connections, query stats, and replication
 
-https://grafana.com/grafana/dashboards/18739-fastapi_app-observability/
+The dashboards are sourced from:
 
-https://grafana.com/grafana/dashboards/1860-node-exporter-full/
-
-https://grafana.com/grafana/dashboards/25152-qdrant-observatory/
-
-https://grafana.com/grafana/dashboards/9628-postgresql-database/
+| Dashboard | Origin |
+|---|---|
+| FastAPI Observability | [Grafana #18739](https://grafana.com/grafana/dashboards/18739-fastapi_app-observability/) (customized) |
+| Node Exporter Full | [Grafana #1860](https://grafana.com/grafana/dashboards/1860-node-exporter-full/) |
+| Qdrant Observatory | [Grafana #25152](https://grafana.com/grafana/dashboards/25152-qdrant-observatory/) |
+| PostgreSQL Database | [Grafana #9628](https://grafana.com/grafana/dashboards/9628-postgresql-database/) |
 
 
 ## Development Workflow
