@@ -3,12 +3,11 @@ FILE_MAX_SIZE=10
 FILE_CHUNK_SIZE=512000 # 512 KB
 
 # First 3 values here must match their corresponding ones in docker/env/.env.postgres
-POSTGRES_USER="postgres"
 POSTGRES_USER=
 POSTGRES_PASSWORD=
-POSTGRES_DB="mini-rag"
+POSTGRES_DB=mini-rag
 POSTGRES_PORT=5432
-POSTGRES_HOST="pgvector"
+POSTGRES_HOST=pgvector
 
 # llms settings
 

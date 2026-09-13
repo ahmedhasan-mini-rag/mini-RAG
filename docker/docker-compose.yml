@@ -14,10 +14,10 @@ services:
       - backend
     volumes:
       - fastapi_app_data:/app/assets
-    
+
     env_file:
       - ./env/.env.app
-    
+
     depends_on:
       pgvector:
         condition: service_healthy
@@ -26,7 +26,7 @@ services:
     image: nginx:stable-alpine3.24-perl
     container_name: nginx
     restart: unless-stopped
-    
+
     ports:
       - 80:80
     networks:
@@ -51,9 +51,9 @@ services:
 
     env_file:
       - ./env/.env.postgres
-    
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-postgres}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -69,7 +69,7 @@ services:
       - ./env/.env.postgres_exporter
     networks:
       - backend
-    
+
     depends_on:
       - pgvector
 
@@ -98,14 +98,14 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks:
       - backend
-    
+
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --web.enable-lifecycle
       - --storage.tsdb.path=/prometheus
       - --web.console.libraries=/etc/prometheus/console_libraries
       - --web.console.templates=/etc/prometheus/consoles
-    
+
   grafana:
     image: grafana/grafana:13.0
     container_name: grafana
@@ -120,10 +120,10 @@ services:
       - ./grafana/provisioning/dashboards/json:/var/lib/grafana/dashboards:ro
     networks:
       - backend
-    
+
     env_file:
       - ./env/.env.grafana
-    
+
     depends_on:
       - prometheus
 
@@ -140,7 +140,7 @@ services:
       - /:/rootfs:ro
     networks:
       - backend
-    
+
     command:
       - '--path.procfs=/host/proc'
       - '--path.rootfs=/rootfs'
