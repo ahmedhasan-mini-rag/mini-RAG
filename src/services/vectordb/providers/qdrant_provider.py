@@ -10,9 +10,19 @@ from ..vectordb_enums import SimilarityMetric
 
 
 class QdrantProvider(VectorDBInterface):
-    def __init__(self, dp_path: str, similarity_metric: str):
-        self.client = AsyncQdrantClient(path=dp_path)
-        
+    def __init__(
+        self,
+        similarity_metric: str,
+        qdrant_url: str | None = None,
+        db_path: str | None = None,
+    ):
+        if qdrant_url:
+            self.client = AsyncQdrantClient(url=qdrant_url)
+        elif db_path:
+            self.client = AsyncQdrantClient(path=db_path)
+        else:
+            raise ValueError("Either 'qdrant_url' or 'db_path' must be provided")
+
         self.logger = logging.getLogger(__name__)
         self.sim_metric = self._resolve_similarity_metric(metric=similarity_metric)
 

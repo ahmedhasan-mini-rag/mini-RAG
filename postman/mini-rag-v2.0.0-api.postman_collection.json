@@ -77,6 +77,17 @@
             "header": []
           },
           "response": []
+        },
+        {
+          "name": "inform-task-state",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": ""
+            }
+          },
+          "response": []
         }
       ]
     },

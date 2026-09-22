@@ -1,1 +1,1 @@
-from .minirag import Base, Project, Asset, Chunk
+from .minirag import Base, Project, Asset, Chunk, CeleryTaskExecution

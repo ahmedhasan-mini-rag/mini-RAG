@@ -5,12 +5,13 @@ from fastapi.responses import JSONResponse
 from models import ChunkModel
 from models.enums import ResponseSignal
 from models.schemas import EmbedRequest, SearchRequest
-
 from controllers import NLPController
+from worker.tasks.embed_project_chunks import process
+from worker.task_utils.idempotency_manager import IdempotencyManager
 
 nlp_router = APIRouter(
-    prefix='/api/v1/nlp',
-    tags=['api_v1', 'nlp']
+    prefix='/api/nlp',
+    tags=['nlp']
 )
 
 logger = logging.getLogger(__name__)
@@ -31,41 +32,28 @@ async def embed_project_chunks(
     Returns:
         JSONResponse: Response containing vector DB insertion signal and count of inserted vectors.
     """
+    idempotency_manager = IdempotencyManager(db_client=request.app.state.db_client)
 
-    project = await request.app.state.project_model.get_project(
+    task_args = {
+        'project_name': project_name,
+        'do_reset': embed_request.do_reset
+    }
+
+    task = process.delay(
         project_name=project_name,
-        create_if_missing=False
+        do_reset=embed_request.do_reset
     )
 
-    nlp_controller = NLPController(
-        chat_client=request.app.state.chat_client,
-        embedding_client=request.app.state.embedding_client,
-        vectordb_client=request.app.state.vectordb_client
-    )
-
-    chunk_model = ChunkModel(db_client=request.app.state.db_client)
-
-    # Materialize all chunks upfront so the streaming DB session is released
-    # before any vectordb operations that need connections from the same pool.
-    chunks = [
-        chunk async for chunk 
-        in chunk_model.get_project_chunks(chunk_project_id=project.id)
-    ]
-
-    BATCH_SIZE = 50
-
-    num_inserted = await nlp_controller.embed_and_store_chunks(
-        project_name=project_name,
-        chunks=chunks,
-        do_reset=embed_request.do_reset,
-        batch_size=BATCH_SIZE
+    _ = await idempotency_manager.create_task_record(
+        task_args=task_args,
+        task_name=process.name, # type: ignore
+        celery_id=task.id
     )
 
     return JSONResponse(
-        status_code=status.HTTP_200_OK,
         content={
-            'response': ResponseSignal.VECTORDB_INSERTION_SUCCESS,
-            'inserted_vectors' : num_inserted
+            'response' : ResponseSignal.TASK_IN_PROGRESS,
+            'task_id' : task.id
         }
     )
 

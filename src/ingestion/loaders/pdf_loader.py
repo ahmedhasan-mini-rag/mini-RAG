@@ -56,7 +56,7 @@ class PdfLoader(BaseLoader):
 
                 output = self._normalize_output(
                     proc_results=proc_results,
-                    proc_pages=tuple(page_groups.values()),
+                    proc_pages=tuple(pages for pages in page_groups.values() if pages),
                     metadata_template=metadata_template
                 )
 

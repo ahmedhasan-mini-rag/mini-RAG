@@ -13,12 +13,18 @@ class VectorDBProviderFactory:
         match provider.lower():
 
             case Provider.QDRANT:
-                dp_path = self._get_db_path(Provider.QDRANT)
-
-                client = QdrantProvider(
-                    dp_path=dp_path,
-                    similarity_metric=self.config.VECTORDB_SIMILARITY_METRIC,
-                )
+                if self.config.QDRANT_HOST:
+                    qdrant_url = f"http://{self.config.QDRANT_HOST}:{self.config.QDRANT_PORT}"
+                    client = QdrantProvider(
+                        qdrant_url=qdrant_url,
+                        similarity_metric=self.config.VECTORDB_SIMILARITY_METRIC,
+                    )
+                else:
+                    db_path = self._get_db_path(Provider.QDRANT)
+                    client = QdrantProvider(
+                        db_path=db_path,
+                        similarity_metric=self.config.VECTORDB_SIMILARITY_METRIC,
+                    )
 
             case Provider.PGVECTOR:
                 client = PGVectorProvider(

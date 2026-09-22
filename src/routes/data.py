@@ -4,25 +4,28 @@ import logging
 import shutil
 
 from utils.config import get_settings, Settings
-from controllers import DataController, ProcessController, NLPController, ProjectController
+from controllers import DataController, NLPController, ProjectController
 from models.enums import ResponseSignal
 from models.schemas import ProcessRequest
 from models import ChunkModel, AssetModel
 from exceptions import ProjectNotFoundError
+from worker.celery_app import celery_app
+from worker.tasks.process_project_data import process
+from worker.task_utils.idempotency_manager import IdempotencyManager
 
 data_router = APIRouter(
-    prefix='/api/v1/data',
-    tags=['api_v1', 'data']
+    prefix='/api/data',
+    tags=['data']
 )
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 @data_router.post('/upload/{project_name}')
 async def upload_files(
     request: Request, 
     project_name: str, 
-    files: list[UploadFile],
-    settings: Settings = Depends(get_settings)
+    files: list[UploadFile]
 ) -> JSONResponse:
     """Upload files to a specified project.
 
@@ -30,7 +33,6 @@ async def upload_files(
         request (Request): FastAPI request object containing application context.
         project_name (str): Name of the target project for file upload.
         files (list[UploadFile]): List of uploaded files to process and store.
-        settings (Settings, optional): Application settings injected via dependency.
 
     Returns:
         JSONResponse: Response indicating upload outcome alongside lists of
@@ -87,43 +89,56 @@ async def process_project_data(
         JSONResponse: Response containing processing status and breakdown of processed
             files and generated chunks.
     """
+    idempotency_manager = IdempotencyManager(db_client=request.app.state.db_client)
 
-    project = await request.app.state.project_model.get_project(
+    process_request_dict = process_request.model_dump()
+    task_args = {
+        'project_name': project_name,
+        'process_request': process_request_dict
+    }
+
+    task = process.delay(
         project_name=project_name,
-        create_if_missing=False
+        process_request=process_request_dict,
     )
 
-    chunk_model = ChunkModel(db_client=request.app.state.db_client)
-    asset_model = AssetModel(db_client=request.app.state.db_client)
-
-    results = {}
-    if process_request.do_reset:
-        results['deleted_chunks'] = await chunk_model.delete_project_chunks(chunk_project_id=project.id)
-    
-    process_controller = ProcessController(project=project)
-
-    results.update(
-        await process_controller.process_tasks(
-            process_request=process_request,
-            chunk_model=chunk_model,
-            asset_model=asset_model,
-        )
+    _ = await idempotency_manager.create_task_record(
+        task_args=task_args,
+        task_name=process.name, # type: ignore
+        celery_id=task.id
     )
-    
-    if results['processed_files'] > 0:
-        status_code = status.HTTP_200_OK
-        final_response = ResponseSignal.PROCESSING_SUCCESS
-    else:
-        status_code = status.HTTP_404_NOT_FOUND
-        final_response = ResponseSignal.FILE_NOT_FOUND
 
     return JSONResponse(
-        status_code=status_code,
         content={
-            'response' : final_response,
-            'processing_details' : results
+            'response' : ResponseSignal.TASK_IN_PROGRESS,
+            'task_id' : task.id
         }
     )
+
+@data_router.get('/tasks/{task_id}')
+async def get_task_status(task_id: str) -> JSONResponse:
+    """Check the status and result of a background processing task.
+
+    Args:
+        task_id (str): The Celery task ID returned by the process endpoint.
+
+    Returns:
+        JSONResponse: Response containing the task state and result (if available).
+    """
+    result = celery_app.AsyncResult(task_id)
+
+    response = {
+        'task_id': task_id,
+        'state': result.state,
+    }
+
+    if result.ready():
+        if result.successful():
+            response['result'] = result.result
+        else:
+            response['error'] = str(result.result)
+
+    return JSONResponse(content=response)
 
 @data_router.delete('/delete/{project_name}')
 async def delete_project(request: Request, project_name: str) -> JSONResponse:

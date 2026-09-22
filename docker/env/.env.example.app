@@ -2,12 +2,8 @@ FILE_ALLOWED_TYPES=["text/plain", "application/pdf", "application/vnd.openxmlfor
 FILE_MAX_SIZE=10
 FILE_CHUNK_SIZE=512000 # 512 KB
 
-# First 3 values here must match their corresponding ones in docker/env/.env.postgres
-POSTGRES_USER=
-POSTGRES_PASSWORD=
-POSTGRES_DB=mini-rag
 POSTGRES_PORT=5432
-POSTGRES_HOST=pgvector
+POSTGRES_HOST=pgvector # docker compose service name
 
 # llms settings
 
@@ -37,6 +33,10 @@ VECTORDB_SIMILARITY_METRIC="cosine"
 VECTORDB_INDEX_BUILDING_THRESHOLD=10000  # threshold after which to start building the vector index
 VECTORDB_INDEX_TYPE="hnsw"
 
+# qdrant container connection (set QDRANT_HOST to use the qdrant container, leave empty for embedded mode)
+QDRANT_HOST="qdrant"  # docker compose service name
+QDRANT_PORT=6333
+
 # pdf processing settings
 
 SCANNED_PAGE_TEXT_MAX_LIMIT=
@@ -56,3 +56,23 @@ R2_ACCOUNT_ID=
 R2_PUBLIC_URL=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
+
+# celery settings
+
+CELERY_TASK_SERIALIZER="json"
+CELERY_TASK_TIME_LIMIT=
+CELERY_TASK_ACKS_LATE=
+CELERY_TASK_WORKER_CONCURRENCY=
+
+# celery broker(rabbitmq) and results backend(redis) settings
+
+RABBITMQ_HOST="rabbitmq"
+RABBITMQ_PORT=5672
+
+REDIS_HOST="redis"
+REDIS_PORT=6379
+
+# flower pass
+CELERY_FLOWER_PASS=
+
+TASK_EXECUTION_TABLE_RETENTION_TIME=86400

@@ -25,3 +25,5 @@ class ResponseSignal(str, Enum):
 
     RAG_ANSWER_SUCCESS = 'Answer generated successfully.'
     RAG_ANSWER_FAIL = 'Failed to generate an answer.'
+
+    TASK_IN_PROGRESS = 'Your task has been queued for processing'

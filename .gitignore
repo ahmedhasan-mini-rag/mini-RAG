@@ -140,6 +140,7 @@ celerybeat.pid
 mnesia/
 rabbitmq/
 rabbitmq-data/
+!docker/rabbitmq/
 
 # ActiveMQ
 activemq-data/

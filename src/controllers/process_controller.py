@@ -2,7 +2,6 @@ import os
 import logging
 import time
 from typing import Any
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from .base_controller import BaseController
 from .project_controller import ProjectController

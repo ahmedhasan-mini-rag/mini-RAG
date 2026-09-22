@@ -17,10 +17,100 @@ services:
 
     env_file:
       - ./env/.env.app
+      - ./env/.env.postgres
+      - ./env/.env.rabbitmq
+      - ./env/.env.redis
 
     depends_on:
       pgvector:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+
+    container_name: celery_worker
+    restart: unless-stopped
+
+    networks:
+      - backend
+    volumes:
+      - fastapi_app_data:/app/assets
+
+    env_file:
+      - ./env/.env.app
+      - ./env/.env.postgres
+      - ./env/.env.rabbitmq
+      - ./env/.env.redis
+
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: [ "celery", "-A", "src.worker.celery_app:celery_app", "worker", "--loglevel=info", "-Q", "process_project_data,embed_project_chunks,default" ]
+
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+
+    container_name: celery_beat
+    restart: unless-stopped
+
+    networks:
+      - backend
+
+    env_file:
+      - ./env/.env.app
+      - ./env/.env.postgres
+      - ./env/.env.rabbitmq
+      - ./env/.env.redis
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: [ "celery", "-A", "src.worker.celery_app:celery_app", "beat", "--loglevel=info" ]
+
+  celery_flower:
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+
+    container_name: celery_flower
+    restart: unless-stopped
+
+    ports:
+      - 5555:5555
+    networks:
+      - backend
+
+    env_file:
+      - ./env/.env.app
+      - ./env/.env.postgres
+      - ./env/.env.rabbitmq
+      - ./env/.env.redis
+
+    depends_on:
+      celery_worker:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: [ "celery", "-A", "src.worker.celery_app:celery_app", "flower", "--port=5555", "--conf=src/worker/flowerconfig.py" ]
 
   nginx:
     image: nginx:stable-alpine3.24-perl
@@ -147,12 +237,63 @@ services:
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
 
+  rabbitmq:
+    image: rabbitmq:4.3.5-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+
+    ports:
+      - 5672:5672 # AMQP
+      - 15672:15672 # management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - backend
+
+    env_file:
+      - ./env/.env.rabbitmq
+
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
+      interval: 60s
+      timeout: 5s
+      retries: 4
+
+  redis:
+    image: redis:8.8.2-trixie
+    container_name: redis
+    restart: unless-stopped
+
+    ports:
+      - 6379:6379
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+
+    env_file:
+      - ./env/.env.redis
+
+    # by default, redis doesn't read the injected env variables.
+    command: >
+      sh -c 'redis-server --requirepass "$$REDIS_PASSWORD" --appendonly "$$REDIS_APPENDONLY" --maxmemory "$$REDIS_MAXMEMORY" --maxmemory-policy "$$REDIS_MAXMEMORY_POLICY" --protected-mode "$$REDIS_PROTECTED_MODE"'
+
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
 volumes:
   fastapi_app_data:
   pg_data:
   qdrant_data:
   prometheus_data:
   grafana_data:
+  rabbitmq_data:
+  redis_data:
 
 networks:
   backend:

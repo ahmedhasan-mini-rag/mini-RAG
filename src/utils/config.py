@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import computed_field, field_validator
+from pydantic import computed_field, field_validator, Field
 import tomllib
 import yaml
 import logging
@@ -26,20 +26,23 @@ def _read_toml() -> dict:
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=BASE_DIR / '.env',
+        env_file=(
+            BASE_DIR / '.env', 
+            BASE_DIR / 'docker/env/.env.postgres', # to run locally, .env.postgres must be setup first!(edit README?)
+            BASE_DIR / 'docker/env/.env.rabbitmq',
+            BASE_DIR / 'docker/env/.env.redis',
+        ),
         env_ignore_empty=True,
         extra='ignore'
     )
     APP_NAME: str 
     APP_VERSION: str
 
+    # '.env', 
     FILE_ALLOWED_TYPES: list
     FILE_MAX_SIZE: int
     FILE_CHUNK_SIZE: int
     
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
     POSTGRES_PORT: int
     POSTGRES_HOST: str
 
@@ -64,6 +67,9 @@ class Settings(BaseSettings):
     VECTORDB_INDEX_BUILDING_THRESHOLD: int
     VECTORDB_INDEX_TYPE: str
 
+    QDRANT_HOST: str | None = None
+    QDRANT_PORT: int = 6333
+
     SCANNED_PAGE_TEXT_MAX_LIMIT: int
     SCANNED_PAGE_MIN_RATIO_LIMIT: float
     CONVERSION_DPI: int = 150
@@ -78,13 +84,56 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
 
+    CELERY_TASK_SERIALIZER: str
+    CELERY_TASK_TIME_LIMIT: int
+    CELERY_TASK_ACKS_LATE: str
+    CELERY_TASK_WORKER_CONCURRENCY: int
+    
+    RABBITMQ_HOST: str
+    RABBITMQ_PORT: int
+    REDIS_HOST: str
+    REDIS_PORT: int
+
+    CELERY_FLOWER_PASS: str
+
+    TASK_EXECUTION_TABLE_RETENTION_TIME: int = 86400
+
+    # 'docker/env/.env.postgres'
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+
+    # 'docker/env/.env.rabbitmq',
+    RABBITMQ_USER: str = Field(validation_alias="RABBITMQ_DEFAULT_USER")
+    RABBITMQ_PASS: str = Field(validation_alias="RABBITMQ_DEFAULT_PASS")
+    RABBITMQ_VHOST: str = Field(validation_alias="RABBITMQ_DEFAULT_VHOST")
+
+    # 'docker/env/.env.redis',
+    REDIS_PASSWORD: str
+
     @computed_field
     @property
     def sqlalchemy_url(self) -> str:
         from urllib.parse import quote_plus
         user = quote_plus(self.POSTGRES_USER)
         password = quote_plus(self.POSTGRES_PASSWORD)
-        return f"postgresql+asyncpg://{user}:{password}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}?ssl=disable"
+        return f"postgresql+asyncpg://{user}:{password}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}" # ?ssl=disable
+
+    @computed_field
+    @property
+    def celery_broker_url(self) -> str:
+        from urllib.parse import quote_plus
+        user = quote_plus(self.RABBITMQ_USER)
+        password = quote_plus(self.RABBITMQ_PASS)
+        vhost = quote_plus(self.RABBITMQ_VHOST)
+        return f"amqp://{user}:{password}@{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}/{vhost}"
+    
+    @computed_field
+    @property
+    def celery_results_backend_url(self) -> str:
+        from urllib.parse import quote_plus
+        password = quote_plus(self.REDIS_PASSWORD)
+        return f"redis://:{password}@{self.REDIS_HOST}:{self.REDIS_PORT}/0"
     
     @computed_field
     @property
@@ -100,7 +149,7 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     meta_data = _read_toml()
-    settings = Settings( 
+    settings = Settings(  # type: ignore
         APP_NAME = meta_data.get('name', 'unknown'),
         APP_VERSION = meta_data.get('version', 'unknown')
     )

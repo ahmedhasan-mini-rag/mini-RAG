@@ -76,4 +76,23 @@ class Chunk(Base):
 
     project: Mapped["Project"] = relationship(back_populates="chunks")
     asset: Mapped["Asset"] = relationship(back_populates="chunks")
-    
+
+class CeleryTaskExecution(Base):
+    __tablename__ = "celery_task_executions"
+
+    name: Mapped[str] = mapped_column(nullable=False)
+    state: Mapped[str] = mapped_column(nullable=False)
+    celery_id: Mapped[str] = mapped_column()
+    unique_hash: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_name_unique_hash", "name", "unique_hash", unique=True),
+    )
