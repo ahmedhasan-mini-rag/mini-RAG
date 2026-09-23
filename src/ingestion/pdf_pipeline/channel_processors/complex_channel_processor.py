@@ -58,14 +58,15 @@ class ComplexChannelProcessor(ChannelProcessorInterface):
         ocr_task = asyncio.create_task(self._run_ocr(pages=pages, doc=doc))
         img_task = asyncio.create_task(self._describe_and_upload_images(doc=doc))
         
-        mds, imgs_data = await asyncio.gather(ocr_task, img_task)
+        (mds, success_pages), imgs_data = await asyncio.gather(ocr_task, img_task)
         
         results = self._post_process_ocr_output(mds=mds)
 
         return ProcessingResult(
             md_text=results['md_text'],
             tables=results['tables'],
-            images=imgs_data
+            images=imgs_data,
+            success_pages=success_pages
         )
 
     async def _ocr_single_page(self, page_num: int, doc: pymupdf.Document) -> tuple[int, str]:
@@ -105,7 +106,7 @@ class ComplexChannelProcessor(ChannelProcessorInterface):
         md = response.choices[0].message.content.strip() # type: ignore
         return page_num, md
 
-    async def _run_ocr(self, pages: list[int], doc: pymupdf.Document) -> list[str]:
+    async def _run_ocr(self, pages: list[int], doc: pymupdf.Document) -> tuple[list[str], list[int]]:
         tasks = [self._ocr_single_page(page_num, doc) for page_num in pages]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -123,7 +124,7 @@ class ComplexChannelProcessor(ChannelProcessorInterface):
         if failed:
             logger.warning("Complex channel: OCR failed for pages %s", failed)
 
-        return mds
+        return mds, success_pages
     
     def _to_base64(self, data: Any) -> str:
         pix = data.get_pixmap(dpi=self.dpi)

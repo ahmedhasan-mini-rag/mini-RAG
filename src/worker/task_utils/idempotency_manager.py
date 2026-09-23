@@ -63,6 +63,12 @@ class IdempotencyManager:
                 async with session.begin():
                     task = await session.get(CeleryTaskExecution, hash_id)
 
+                    if task is None:
+                        raise ValueError(
+                            f"Task record not found for '{task_name}' with hash '{hash_id}'. "
+                            f"The record may not have been created yet."
+                        )
+
                     task.state = state
                     if state == TaskState.STARTED:
                         task.started_at = datetime.now(timezone.utc)

@@ -14,9 +14,11 @@ async def welcome(settings: Settings = Depends(get_settings)):
         settings (Settings, optional): Application settings injected via dependency.
 
     Returns:
-        dict: Dictionary containing application name and version.
+        str: Welcoming string containing application name and version.
     """
-    return{
-        'app_name': settings.APP_NAME,
-        'app_version': settings.APP_VERSION
-    }
+    return f"""
+    Welcome to the mini RAG application! :)
+
+    -> app_name: {settings.APP_NAME}
+    -> app_version: {settings.APP_VERSION}
+    """

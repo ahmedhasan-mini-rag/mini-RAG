@@ -1,4 +1,5 @@
 import logging
+import uuid
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
@@ -39,21 +40,26 @@ async def embed_project_chunks(
         'do_reset': embed_request.do_reset
     }
 
-    task = process.delay(
-        project_name=project_name,
-        do_reset=embed_request.do_reset
-    )
+    task_id = str(uuid.uuid4())
 
     _ = await idempotency_manager.create_task_record(
         task_args=task_args,
         task_name=process.name, # type: ignore
-        celery_id=task.id
+        celery_id=task_id
+    )
+
+    process.apply_async(
+        kwargs={
+            'project_name': project_name,
+            'do_reset': embed_request.do_reset,
+        },
+        task_id=task_id,
     )
 
     return JSONResponse(
         content={
             'response' : ResponseSignal.TASK_IN_PROGRESS,
-            'task_id' : task.id
+            'task_id' : task_id
         }
     )
 

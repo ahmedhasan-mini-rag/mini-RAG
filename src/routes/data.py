@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
 import logging
 import shutil
+import uuid
 
 from utils.config import get_settings, Settings
 from controllers import DataController, NLPController, ProjectController
@@ -97,21 +98,26 @@ async def process_project_data(
         'process_request': process_request_dict
     }
 
-    task = process.delay(
-        project_name=project_name,
-        process_request=process_request_dict,
-    )
+    task_id = str(uuid.uuid4())
 
     _ = await idempotency_manager.create_task_record(
         task_args=task_args,
         task_name=process.name, # type: ignore
-        celery_id=task.id
+        celery_id=task_id
+    )
+
+    process.apply_async(
+        kwargs={
+            'project_name': project_name,
+            'process_request': process_request_dict,
+        },
+        task_id=task_id,
     )
 
     return JSONResponse(
         content={
             'response' : ResponseSignal.TASK_IN_PROGRESS,
-            'task_id' : task.id
+            'task_id' : task_id
         }
     )
 

@@ -7,6 +7,7 @@ class ProcessingResult(BaseModel):
     md_text: list[str] # markdown text
     images: dict[str, str] = {} # cloud_url -> description
     tables: list[list[dict[str, str]]] = []
+    success_pages: list[int]
 
 class ChannelProcessorInterface(ABC):
     _SCANNED_TABLES_REGEX = r"<table_block>\s*<description>(.*?)</description>\s*<markdown>(.*?)</markdown>\s*</table_block>"

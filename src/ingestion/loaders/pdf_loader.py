@@ -106,7 +106,7 @@ class PdfLoader(BaseLoader):
         for result, pages in zip(proc_results, proc_pages):
             if len(result.md_text) != len(pages):
                 logger.warning(
-                    f'Potential problem: length of resulting md_text({len(result.md_text)})' 
+                    f'Potential problem: length of resulting md_text({len(result.md_text)}) ' 
                     f'is expected to match the length of processed pages({len(pages)})'
                 )
 

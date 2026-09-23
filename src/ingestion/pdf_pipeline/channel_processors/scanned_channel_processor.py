@@ -29,12 +29,13 @@ class ScannedChannelProcessor(ChannelProcessorInterface):
         self._ocr_system_prompt = value
 
     async def process(self, pages: list[int], doc: pymupdf.Document) -> ProcessingResult:
-        extracted_mds = await self._run_ocr(pages=pages, doc=doc)
-        results = self._post_process_ocr_output(mds=extracted_mds)
+        mds, success_pages = await self._run_ocr(pages=pages, doc=doc)
+        results = self._post_process_ocr_output(mds=mds)
 
         return ProcessingResult(
             md_text=results['md_text'],
-            tables=results['tables']
+            tables=results['tables'],
+            success_pages=success_pages
         )
 
     async def _ocr_single_page(self, page_num: int, doc: pymupdf.Document) -> tuple[int, str]:
@@ -73,24 +74,25 @@ class ScannedChannelProcessor(ChannelProcessorInterface):
         page_content = response.choices[0].message.content.strip() # type: ignore
         return page_num, page_content
 
-    async def _run_ocr(self, pages: list[int], doc: pymupdf.Document) -> list[str]:
+    async def _run_ocr(self, pages: list[int], doc: pymupdf.Document) -> tuple[list[str], list[int]]:
         tasks = [self._ocr_single_page(page_num, doc) for page_num in pages]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Preserve page order; filter out failures
-        ordered: dict[int, str] = {}
+        success_pages, mds = [], []
         for result in raw_results:
             if isinstance(result, Exception):
                 logger.warning("Scanned OCR failed for a page: %s", result)
                 continue
-            page_num, content = result # type: ignore
-            ordered[page_num] = content
+            page_num, md = result # type: ignore
+            success_pages.append(page_num)
+            mds.append(md)
 
-        failed = [p for p in pages if p not in ordered]
+        failed = [p for p in pages if p not in success_pages]
         if failed:
             logger.warning("Scanned channel: OCR failed for pages %s", failed)
 
-        return list(ordered.values())
+        return mds, success_pages
 
     def _page_to_base64(self, page: pymupdf.Page) -> str:
         pix = page.get_pixmap(dpi=self.dpi)

@@ -17,4 +17,4 @@ class SimpleChannelProcessor(ChannelProcessorInterface):
         )
 
         md_text = [page['text'] for page in pages_data] # type: ignore
-        return ProcessingResult(md_text=md_text)
+        return ProcessingResult(md_text=md_text, success_pages=pages)
