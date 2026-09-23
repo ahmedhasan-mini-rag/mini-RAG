@@ -28,7 +28,25 @@ cp .env.example.postgres .env.postgres
 cp .env.example.grafana .env.grafana
 cp .env.example.postgres_exporter .env.postgres_exporter
 ```
-### 2. Start the services
+
+### 2. Configure the Application (`.env.app`)
+
+The `.env.app` file is the **primary configuration file** for the FastAPI application. After copying the example, open it and configure the following sections:
+
+| Section | Key Variables | What to Set |
+| :--- | :--- | :--- |
+| **LLM Provider** | `CHAT_MODEL_PROVIDER`, `EMBEDDING_MODEL_PROVIDER` | Choose a provider: `openai`, `cohere`, or `google`. Then set the matching API key (`OPENAI_API_KEY`, `COHERE_API_KEY`, or `GOOGLE_API_KEY`) and model IDs (`CHAT_MODEL_ID`, `EMBEDDING_MODEL_ID`). |
+| **Vector DB** | `VECTORDB_PROVIDER` | Set to `qdrant` (uses the Qdrant container) or `pgvector` (uses the PostgreSQL container). No other changes needed — service factories handle the rest. |
+| **PDF Pipeline (VLM/OCR)** | `OCR_MODEL_ID`, `OCR_MODEL_URL`, `OCR_MODEL_API_KEY` | Point to a Vision Language Model for PDF OCR and table extraction. Supports local Ollama (e.g., `http://host.docker.internal:11434/v1/`), OpenAI-compatible endpoints, or Hugging Face Inference. |
+| **Image Storage (R2)** | `R2_BUCKET_NAME`, `R2_ACCOUNT_ID`, `R2_PUBLIC_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Required only for the PDF pipeline's image extraction feature. Set up a Cloudflare R2 bucket and fill in the credentials. |
+| **Celery Tuning** | `CELERY_TASK_TIME_LIMIT`, `CELERY_TASK_WORKER_CONCURRENCY` | Task timeout (seconds) and number of parallel worker processes. Adjust based on your instance's resources. |
+
+> **Note**: Variables like `POSTGRES_HOST`, `RABBITMQ_HOST`, and `REDIS_HOST` are pre-configured with Docker Compose service names in the example file — you typically don't need to change these.
+
+> [!IMPORTANT]
+> Don't forget to also fill in the remaining environment files: `.env.postgres` (database credentials), `.env.grafana` (admin login), `.env.postgres_exporter` (exporter connection string), `.env.rabbitmq` (broker credentials), and `.env.redis` (password). Each has a corresponding `.env.example.*` template to copy from.
+
+### 3. Start the services
 ```bash
 cd ..
 docker compose up --build -d
@@ -61,7 +79,7 @@ In case deleting all containers and volumes is necessary, you can run:
 docker compose down -v --remove-orphans
 ```
 
-### 3. Access the services
+### 4. Access the services
 
 - FastAPI Application: http://localhost:8797
 - FastAPI Documentation: http://localhost:8797/docs

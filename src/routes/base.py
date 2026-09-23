@@ -16,9 +16,10 @@ async def welcome(settings: Settings = Depends(get_settings)):
     Returns:
         str: Welcoming string containing application name and version.
     """
-    return f"""
-    Welcome to the mini RAG application! :)
 
-    -> app_name: {settings.APP_NAME}
-    -> app_version: {settings.APP_VERSION}
-    """
+    return {
+        'message': 'Welcome to the mini RAG application! :)',
+        'app_name': settings.APP_NAME,
+        'app_version': settings.APP_VERSION
+    }
+
