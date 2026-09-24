@@ -10,9 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4.2.2
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
@@ -20,13 +17,19 @@ jobs:
           username: ahmed-hasan
           key: ${{ secrets.SSH_MAIN_PRIVATE_KEY }}
           script: |
+            set -e
+
             cd /home/ahmed-hasan/workspace/mini-RAG
-            git checkout main
-            git pull
+            git fetch origin main
+            git reset --hard origin/main
+
             sudo systemctl restart minirag.service
+
             echo "Waiting..."
             sleep 20
 
+            # Turn off -e temporarily for the retry loop so grep non-zero exit doesn't abort the script
+            set +e
             for i in {1..6}; do
               if ss -tuln | grep -q ':80'; then
                 echo "✅ Port 80 is now active."
@@ -36,10 +39,9 @@ jobs:
                 sleep 5
               fi
             done
+            set -e
 
             if ! ss -tuln | grep -q ':80'; then
               echo "❌ Service failed to start on port 80"
               exit 1
             fi
-
-
